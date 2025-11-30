@@ -1,0 +1,137 @@
+<div class="dashboard-container">
+  <!-- Page Header -->
+  <div class="page-header">
+    <h1>Dashboard</h1>
+    <p>Overview of your financial portfolio</p>
+  </div>
+
+  <!-- Net Worth Card -->
+  <div class="net-worth-section">
+    <mat-card class="net-worth-card" *ngIf="netWorth$ | async as netWorth">
+      <mat-card-header>
+        <mat-card-title>
+          <mat-icon class="net-worth-icon">account_balance_wallet</mat-icon>
+          Total Net Worth
+        </mat-card-title>
+      </mat-card-header>
+      <mat-card-content>
+        <div class="net-worth-amount">
+          {{ formatCurrency(netWorth.netWorth) }}
+        </div>
+        <div class="net-worth-breakdown">
+          <div class="breakdown-item assets">
+            <span class="label">Total Assets</span>
+            <span class="value">{{ formatCurrency(netWorth.totalAssets) }}</span>
+          </div>
+          <div class="breakdown-item liabilities">
+            <span class="label">Total Liabilities</span>
+            <span class="value">{{ formatCurrency(netWorth.totalLiabilities) }}</span>
+          </div>
+        </div>
+      </mat-card-content>
+    </mat-card>
+  </div>
+
+  <!-- Category Summary Cards -->
+  <div class="category-section">
+    <h2>Investment Categories</h2>
+    <div class="category-grid">
+      <ng-container *ngIf="categorySummaries$ | async as summaries">
+        <mat-card 
+          *ngFor="let summary of summaries" 
+          class="category-card"
+          (click)="navigateToCategory(getCategoryDetails(summary.category)?.route || '')"
+          [attr.data-category]="summary.category">
+          
+          <mat-card-header>
+            <div class="category-icon-container" 
+                 [style.background-color]="getCategoryDetails(summary.category)?.color">
+              <mat-icon>{{ getCategoryDetails(summary.category)?.icon }}</mat-icon>
+            </div>
+            <mat-card-title>{{ getCategoryDetails(summary.category)?.title }}</mat-card-title>
+          </mat-card-header>
+
+          <mat-card-content>
+            <div class="category-metrics">
+              <!-- Invested/Principal Amount -->
+              <div class="metric">
+                <span class="metric-label">
+                  {{ summary.category === 'loans' ? 'Principal' : 'Invested' }}
+                </span>
+                <span class="metric-value">
+                  {{ formatCurrency(summary.totalInvested) }}
+                </span>
+              </div>
+
+              <!-- Current Value/Outstanding -->
+              <div class="metric">
+                <span class="metric-label">
+                  {{ summary.category === 'loans' ? 'Outstanding' : 'Current Value' }}
+                </span>
+                <span class="metric-value">
+                  {{ formatCurrency(summary.currentValue) }}
+                </span>
+              </div>
+
+              <!-- Profit/Loss -->
+              <div class="metric profit-loss">
+                <span class="metric-label">P&L</span>
+                <div class="profit-loss-container">
+                  <span class="metric-value" 
+                        [ngClass]="{'positive': isPositive(summary.profitLoss), 'negative': !isPositive(summary.profitLoss)}">
+                    {{ formatCurrency(Math.abs(summary.profitLoss)) }}
+                  </span>
+                  <span class="percentage" 
+                        [ngClass]="{'positive': isPositive(summary.profitLossPercentage), 'negative': !isPositive(summary.profitLossPercentage)}">
+                    {{ formatPercentage(summary.profitLossPercentage) }}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </mat-card-content>
+
+          <mat-card-actions>
+            <button mat-button color="primary">
+              <mat-icon>arrow_forward</mat-icon>
+              View Details
+            </button>
+          </mat-card-actions>
+        </mat-card>
+      </ng-container>
+    </div>
+  </div>
+
+  <!-- Quick Actions -->
+  <div class="quick-actions-section">
+    <h2>Quick Actions</h2>
+    <div class="quick-actions-grid">
+      <mat-card class="quick-action-card" (click)="navigateToCategory('/investments/stocks')">
+        <mat-card-content>
+          <mat-icon>add_circle</mat-icon>
+          <span>Add Stock Investment</span>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="quick-action-card" (click)="navigateToCategory('/investments/mutual_funds')">
+        <mat-card-content>
+          <mat-icon>add_circle</mat-icon>
+          <span>Add Mutual Fund</span>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="quick-action-card" (click)="navigateToCategory('/investments/fds')">
+        <mat-card-content>
+          <mat-icon>add_circle</mat-icon>
+          <span>Add Fixed Deposit</span>
+        </mat-card-content>
+      </mat-card>
+
+      <mat-card class="quick-action-card" (click)="navigateToCategory('/profile')">
+        <mat-card-content>
+          <mat-icon>settings</mat-icon>
+          <span>Settings</span>
+        </mat-card-content>
+      </mat-card>
+    </div>
+  </div>
+</div>

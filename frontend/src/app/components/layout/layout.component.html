@@ -1,0 +1,113 @@
+<mat-sidenav-container class="sidenav-container">
+  <!-- Sidebar -->
+  <mat-sidenav 
+    #drawer 
+    class="sidenav" 
+    fixedInViewport
+    [attr.role]="(isHandset$ | async) ? 'dialog' : 'navigation'"
+    [mode]="(isHandset$ | async) ? 'over' : 'side'"
+    [opened]="(isHandset$ | async) === false">
+    
+    <!-- Sidebar Header -->
+    <div class="sidenav-header">
+      <div class="app-logo">
+        <mat-icon class="app-icon">account_balance_wallet</mat-icon>
+        <span class="app-name">InvestMate</span>
+      </div>
+      <mat-divider></mat-divider>
+    </div>
+
+    <!-- User Profile Section -->
+    <div class="user-profile" *ngIf="currentUser">
+      <div class="user-avatar">
+        <mat-icon>person</mat-icon>
+      </div>
+      <div class="user-info">
+        <div class="user-name">{{ userName }}</div>
+        <div class="user-email">{{ userEmail }}</div>
+      </div>
+    </div>
+    <mat-divider></mat-divider>
+
+    <!-- Navigation Menu -->
+    <mat-nav-list class="nav-list">
+      <ng-container *ngFor="let item of navigationItems">
+        <a 
+          mat-list-item 
+          [routerLink]="item.route"
+          [class.active]="item.active"
+          (click)="onNavigate(item.route)"
+          class="nav-item">
+          <mat-icon matListItemIcon>{{ item.icon }}</mat-icon>
+          <span matListItemTitle>{{ item.label }}</span>
+        </a>
+      </ng-container>
+    </mat-nav-list>
+
+    <!-- Sidebar Footer -->
+    <div class="sidenav-footer">
+      <mat-divider></mat-divider>
+      <div class="footer-actions">
+        <button mat-button (click)="toggleTheme()" class="theme-toggle-btn">
+          <mat-icon>{{ (isDarkTheme$ | async) ? 'light_mode' : 'dark_mode' }}</mat-icon>
+          <span>{{ (isDarkTheme$ | async) ? 'Light' : 'Dark' }} Mode</span>
+        </button>
+        <button mat-button (click)="onLogout()" class="logout-btn">
+          <mat-icon>logout</mat-icon>
+          <span>Logout</span>
+        </button>
+      </div>
+    </div>
+  </mat-sidenav>
+
+  <!-- Main Content -->
+  <mat-sidenav-content>
+    <!-- Top Toolbar -->
+    <mat-toolbar color="primary" class="toolbar">
+      <!-- Mobile Menu Button -->
+      <button
+        type="button"
+        aria-label="Toggle sidenav"
+        mat-icon-button
+        (click)="drawer.toggle()"
+        *ngIf="isHandset$ | async">
+        <mat-icon aria-label="Side nav toggle icon">menu</mat-icon>
+      </button>
+      
+      <!-- Page Title -->
+      <span class="toolbar-title">Welcome to InvestMate</span>
+      
+      <!-- Spacer -->
+      <span class="toolbar-spacer"></span>
+      
+      <!-- Desktop User Menu -->
+      <div class="desktop-user-menu" *ngIf="(isHandset$ | async) === false">
+        <button mat-button [matMenuTriggerFor]="userMenu" class="user-menu-trigger">
+          <mat-icon>person</mat-icon>
+          <span>{{ userName }}</span>
+          <mat-icon>arrow_drop_down</mat-icon>
+        </button>
+        <mat-menu #userMenu="matMenu">
+          <button mat-menu-item (click)="onNavigate('/profile')">
+            <mat-icon>person</mat-icon>
+            <span>Profile</span>
+          </button>
+          <button mat-menu-item (click)="toggleTheme()">
+            <mat-icon>{{ (isDarkTheme$ | async) ? 'light_mode' : 'dark_mode' }}</mat-icon>
+            <span>Toggle Theme</span>
+          </button>
+          <mat-divider></mat-divider>
+          <button mat-menu-item (click)="onLogout()">
+            <mat-icon>logout</mat-icon>
+            <span>Logout</span>
+          </button>
+        </mat-menu>
+      </div>
+    </mat-toolbar>
+
+    <!-- Page Content -->
+    <div class="content-container">
+      <router-outlet></router-outlet>
+    </div>
+  </mat-sidenav-content>
+</mat-sidenav-container>

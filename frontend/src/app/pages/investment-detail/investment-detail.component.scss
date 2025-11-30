@@ -1,0 +1,410 @@
+.investment-detail-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0;
+
+  .page-header {
+    margin-bottom: 2rem;
+
+    .header-content {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+
+      .category-info {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+
+        .category-icon {
+          width: 60px;
+          height: 60px;
+          border-radius: 16px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+
+          mat-icon {
+            font-size: 2rem;
+            color: white;
+          }
+        }
+
+        .category-text {
+          h1 {
+            font-size: 2rem;
+            font-weight: 600;
+            color: #333;
+            margin: 0 0 0.25rem 0;
+          }
+
+          p {
+            font-size: 1rem;
+            color: #666;
+            margin: 0;
+          }
+        }
+      }
+
+      .add-fab {
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      }
+    }
+  }
+
+  .summary-section {
+    margin-bottom: 2rem;
+
+    .summary-card {
+      border-radius: 12px;
+      border: 1px solid rgba(0, 0, 0, 0.1);
+
+      mat-card-content {
+        padding: 1.5rem;
+
+        .summary-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+          gap: 1.5rem;
+
+          .summary-item {
+            text-align: center;
+
+            .summary-label {
+              font-size: 0.9rem;
+              color: #666;
+              font-weight: 500;
+              margin-bottom: 0.5rem;
+            }
+
+            .summary-value {
+              font-size: 1.5rem;
+              font-weight: 600;
+              color: #333;
+
+              &.positive {
+                color: #4caf50;
+              }
+
+              &.negative {
+                color: #f44336;
+              }
+
+              .percentage {
+                font-size: 0.9rem;
+                margin-left: 0.5rem;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  .chart-section {
+    margin-bottom: 2rem;
+
+    .chart-card {
+      border-radius: 12px;
+      border: 1px solid rgba(0, 0, 0, 0.1);
+
+      mat-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1.5rem 1.5rem 0 1.5rem;
+
+        mat-card-title {
+          font-size: 1.2rem;
+          font-weight: 600;
+          color: #333;
+          margin: 0;
+        }
+
+        .chart-filters {
+          mat-chip-set {
+            display: flex;
+            gap: 0.5rem;
+          }
+        }
+      }
+
+      mat-card-content {
+        padding: 1.5rem;
+
+        .chart-placeholder {
+          height: 300px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          border: 2px dashed #ddd;
+          border-radius: 8px;
+          color: #666;
+
+          mat-icon {
+            font-size: 3rem;
+            margin-bottom: 0.5rem;
+            opacity: 0.5;
+          }
+
+          span {
+            font-size: 1rem;
+            opacity: 0.7;
+          }
+        }
+      }
+    }
+  }
+
+  .tables-section {
+    .mat-mdc-tab-group {
+      .mat-mdc-tab-body-wrapper {
+        padding-top: 1.5rem;
+      }
+    }
+
+    .table-container {
+      mat-card {
+        border-radius: 12px;
+        border: 1px solid rgba(0, 0, 0, 0.1);
+
+        mat-card-header {
+          padding: 1.5rem 1.5rem 0 1.5rem;
+
+          mat-card-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: #333;
+            margin: 0;
+          }
+        }
+
+        mat-card-content {
+          padding: 1.5rem;
+
+          .investments-table,
+          .transactions-table {
+            width: 100%;
+
+            .investment-name {
+              display: flex;
+              flex-direction: column;
+
+              .ticker {
+                font-size: 0.8rem;
+                color: #666;
+                margin-top: 0.2rem;
+              }
+            }
+
+            .profit-loss-cell {
+              display: flex;
+              flex-direction: column;
+              align-items: flex-end;
+
+              .percentage {
+                font-size: 0.8rem;
+                margin-top: 0.2rem;
+              }
+            }
+
+            .positive {
+              color: #4caf50;
+            }
+
+            .negative {
+              color: #f44336;
+            }
+
+            .investment-row,
+            .transaction-row {
+              &:hover {
+                background: rgba(0, 0, 0, 0.02);
+              }
+            }
+          }
+
+          .no-data {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 3rem;
+            color: #666;
+
+            mat-icon {
+              font-size: 3rem;
+              margin-bottom: 0.5rem;
+              opacity: 0.5;
+            }
+
+            span {
+              font-size: 1rem;
+              opacity: 0.7;
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+// Dark theme styles
+:host-context(.dark-theme) {
+  .investment-detail-container {
+    .page-header {
+      .header-content {
+        .category-info {
+          .category-text {
+            h1 {
+              color: #ffffff;
+            }
+
+            p {
+              color: #b0b0b0;
+            }
+          }
+        }
+      }
+    }
+
+    .summary-section {
+      .summary-card {
+        background: #1e1e1e;
+        border-color: rgba(255, 255, 255, 0.1);
+
+        .summary-grid {
+          .summary-item {
+            .summary-label {
+              color: #b0b0b0;
+            }
+
+            .summary-value {
+              color: #ffffff;
+            }
+          }
+        }
+      }
+    }
+
+    .chart-section {
+      .chart-card {
+        background: #1e1e1e;
+        border-color: rgba(255, 255, 255, 0.1);
+
+        mat-card-header {
+          mat-card-title {
+            color: #ffffff;
+          }
+        }
+
+        .chart-placeholder {
+          border-color: #444;
+          color: #b0b0b0;
+        }
+      }
+    }
+
+    .tables-section {
+      .table-container {
+        mat-card {
+          background: #1e1e1e;
+          border-color: rgba(255, 255, 255, 0.1);
+
+          mat-card-header {
+            mat-card-title {
+              color: #ffffff;
+            }
+          }
+
+          .investments-table,
+          .transactions-table {
+            .investment-row,
+            .transaction-row {
+              &:hover {
+                background: rgba(255, 255, 255, 0.02);
+              }
+            }
+          }
+
+          .no-data {
+            color: #b0b0b0;
+          }
+        }
+      }
+    }
+  }
+}
+
+// Responsive design
+@media (max-width: 768px) {
+  .investment-detail-container {
+    .page-header {
+      .header-content {
+        flex-direction: column;
+        gap: 1rem;
+        align-items: flex-start;
+
+        .add-fab {
+          align-self: flex-end;
+        }
+      }
+    }
+
+    .summary-section {
+      .summary-card {
+        .summary-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+    }
+
+    .chart-section {
+      .chart-card {
+        mat-card-header {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 1rem;
+        }
+      }
+    }
+
+    .tables-section {
+      .table-container {
+        overflow-x: auto;
+
+        .investments-table,
+        .transactions-table {
+          min-width: 600px;
+        }
+      }
+    }
+  }
+}
+
+// Material table customizations
+.mat-mdc-table {
+  background: transparent;
+  
+  .mat-mdc-header-cell {
+    font-weight: 600;
+    color: #333;
+  }
+
+  .mat-mdc-cell {
+    color: #333;
+  }
+}
+
+:host-context(.dark-theme) {
+  .mat-mdc-table {
+    .mat-mdc-header-cell {
+      color: #ffffff;
+    }
+
+    .mat-mdc-cell {
+      color: #ffffff;
+    }
+  }
+}

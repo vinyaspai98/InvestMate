@@ -1,0 +1,167 @@
+# InvestMate - Git Ignore File
+
+###################
+# Angular/Frontend
+###################
+
+# Compiled output
+/frontend/dist
+/frontend/tmp
+/frontend/out-tsc
+/frontend/bazel-out
+/frontend/.angular
+
+# Node modules
+/frontend/node_modules
+
+# IDEs and editors
+/.idea
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+# Visual Studio Code
+.vscode/*
+.guthub/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.history/*
+
+# Miscellaneous
+/.sass-cache
+/connect.lock
+/coverage
+/libpeerconnection.log
+testem.log
+/typings
+
+# System files
+.DS_Store
+Thumbs.db
+
+# Angular cache
+.angular/
+
+###################
+# Go/Backend
+###################
+
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Go workspace file
+go.work
+
+# Dependency directories
+/backend/vendor/
+
+# Build output
+/backend/bin/
+/backend/build/
+
+# Go module cache
+/backend/pkg/mod/
+
+###################
+# Firebase
+###################
+
+# Firebase config (if sensitive)
+**/firebase-config.json
+**/serviceAccountKey.json
+**/*-firebase-adminsdk-*.json
+
+# Firebase cache
+.firebase/
+.firebaserc
+
+###################
+# Environment Files
+###################
+
+# Environment variables
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+*.env
+
+# Configuration files with secrets
+**/config.local.*
+**/secrets.*
+
+###################
+# Logs
+###################
+
+# Log files
+*.log
+logs/
+*.log.*
+
+# Runtime data
+pids
+*.pid
+*.seed
+*.pid.lock
+
+###################
+# OS Files
+###################
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+
+###################
+# Temporary Files
+###################
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+*~
+
+###################
+# Docker
+###################
+
+# Docker volumes
+docker-compose.override.yml
+
+###################
+# Misc
+###################
+
+# Editor backup files
+*~
+*.bak
+*.orig

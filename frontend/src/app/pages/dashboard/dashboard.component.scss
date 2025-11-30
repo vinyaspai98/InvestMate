@@ -1,0 +1,368 @@
+.dashboard-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0;
+
+  .page-header {
+    margin-bottom: 2rem;
+
+    h1 {
+      font-size: 2rem;
+      font-weight: 600;
+      color: #333;
+      margin: 0 0 0.5rem 0;
+    }
+
+    p {
+      font-size: 1rem;
+      color: #666;
+      margin: 0;
+    }
+  }
+
+  .net-worth-section {
+    margin-bottom: 3rem;
+
+    .net-worth-card {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border-radius: 16px;
+      padding: 1rem;
+
+      mat-card-header {
+        padding: 0 0 1rem 0;
+
+        mat-card-title {
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
+          font-size: 1.2rem;
+          font-weight: 500;
+
+          .net-worth-icon {
+            font-size: 1.5rem;
+            width: 1.5rem;
+            height: 1.5rem;
+          }
+        }
+      }
+
+      mat-card-content {
+        padding: 0;
+
+        .net-worth-amount {
+          font-size: 2.5rem;
+          font-weight: 700;
+          margin-bottom: 1.5rem;
+          text-align: center;
+        }
+
+        .net-worth-breakdown {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 1rem;
+
+          .breakdown-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            backdrop-filter: blur(10px);
+
+            .label {
+              font-size: 0.9rem;
+              opacity: 0.9;
+              margin-bottom: 0.5rem;
+            }
+
+            .value {
+              font-size: 1.1rem;
+              font-weight: 600;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  .category-section {
+    margin-bottom: 3rem;
+
+    h2 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: #333;
+      margin: 0 0 1.5rem 0;
+    }
+
+    .category-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 1.5rem;
+
+      .category-card {
+        border-radius: 12px;
+        transition: all 0.3s ease;
+        cursor: pointer;
+        border: 1px solid rgba(0, 0, 0, 0.1);
+
+        &:hover {
+          transform: translateY(-4px);
+          box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        }
+
+        mat-card-header {
+          padding: 1.5rem 1.5rem 0.5rem 1.5rem;
+
+          .category-icon-container {
+            width: 48px;
+            height: 48px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 1rem;
+
+            mat-icon {
+              color: white;
+              font-size: 1.5rem;
+            }
+          }
+
+          mat-card-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #333;
+            margin: 0;
+          }
+        }
+
+        mat-card-content {
+          padding: 0 1.5rem 0.5rem 1.5rem;
+
+          .category-metrics {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+
+            .metric {
+              display: flex;
+              justify-content: space-between;
+              align-items: center;
+
+              .metric-label {
+                font-size: 0.9rem;
+                color: #666;
+                font-weight: 500;
+              }
+
+              .metric-value {
+                font-size: 1rem;
+                font-weight: 600;
+                color: #333;
+              }
+
+              &.profit-loss {
+                .profit-loss-container {
+                  display: flex;
+                  flex-direction: column;
+                  align-items: flex-end;
+                  gap: 0.25rem;
+
+                  .metric-value {
+                    &.positive {
+                      color: #4caf50;
+                    }
+
+                    &.negative {
+                      color: #f44336;
+                    }
+                  }
+
+                  .percentage {
+                    font-size: 0.8rem;
+                    font-weight: 500;
+
+                    &.positive {
+                      color: #4caf50;
+                    }
+
+                    &.negative {
+                      color: #f44336;
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        mat-card-actions {
+          padding: 0.5rem 1.5rem 1.5rem 1.5rem;
+
+          button {
+            width: 100%;
+            justify-content: center;
+            gap: 0.5rem;
+          }
+        }
+      }
+    }
+  }
+
+  .quick-actions-section {
+    h2 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: #333;
+      margin: 0 0 1.5rem 0;
+    }
+
+    .quick-actions-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+
+      .quick-action-card {
+        border-radius: 12px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        border: 1px solid rgba(0, 0, 0, 0.1);
+
+        &:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        mat-card-content {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 0.5rem;
+          padding: 1.5rem;
+          text-align: center;
+
+          mat-icon {
+            font-size: 2rem;
+            color: #3f51b5;
+          }
+
+          span {
+            font-weight: 500;
+            color: #333;
+          }
+        }
+      }
+    }
+  }
+}
+
+// Dark theme styles
+:host-context(.dark-theme) {
+  .dashboard-container {
+    .page-header {
+      h1 {
+        color: #ffffff;
+      }
+
+      p {
+        color: #b0b0b0;
+      }
+    }
+
+    .category-section {
+      h2 {
+        color: #ffffff;
+      }
+
+      .category-grid {
+        .category-card {
+          background: #1e1e1e;
+          border-color: rgba(255, 255, 255, 0.1);
+
+          mat-card-header {
+            mat-card-title {
+              color: #ffffff;
+            }
+          }
+
+          mat-card-content {
+            .category-metrics {
+              .metric {
+                .metric-label {
+                  color: #b0b0b0;
+                }
+
+                .metric-value {
+                  color: #ffffff;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    .quick-actions-section {
+      h2 {
+        color: #ffffff;
+      }
+
+      .quick-actions-grid {
+        .quick-action-card {
+          background: #1e1e1e;
+          border-color: rgba(255, 255, 255, 0.1);
+
+          mat-card-content {
+            span {
+              color: #ffffff;
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+// Responsive design
+@media (max-width: 768px) {
+  .dashboard-container {
+    .net-worth-section {
+      .net-worth-card {
+        mat-card-content {
+          .net-worth-amount {
+            font-size: 2rem;
+          }
+
+          .net-worth-breakdown {
+            grid-template-columns: 1fr;
+          }
+        }
+      }
+    }
+
+    .category-section {
+      .category-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .quick-actions-section {
+      .quick-actions-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+  }
+}
+
+@media (max-width: 480px) {
+  .dashboard-container {
+    .quick-actions-section {
+      .quick-actions-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  }
+}

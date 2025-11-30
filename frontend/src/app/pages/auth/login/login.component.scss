@@ -1,0 +1,185 @@
+.login-container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  position: relative;
+
+  .theme-toggle {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    z-index: 10;
+
+    button {
+      background: rgba(255, 255, 255, 0.1);
+      color: white;
+      backdrop-filter: blur(10px);
+      
+      &:hover {
+        background: rgba(255, 255, 255, 0.2);
+      }
+    }
+  }
+
+  .login-card-container {
+    width: 100%;
+    max-width: 400px;
+    margin-bottom: 20px;
+  }
+
+  .login-card {
+    padding: 2rem;
+    border-radius: 16px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(10px);
+    background: rgba(255, 255, 255, 0.95);
+
+    .login-title {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 1.8rem;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 0.5rem;
+
+      .app-icon {
+        font-size: 2rem;
+        color: #667eea;
+      }
+    }
+
+    mat-card-subtitle {
+      color: #666;
+      margin-bottom: 1.5rem;
+    }
+  }
+
+  .full-width {
+    width: 100%;
+    margin-bottom: 1rem;
+  }
+
+  .form-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-top: 1.5rem;
+
+    .login-button {
+      height: 48px;
+      font-size: 1rem;
+      font-weight: 500;
+      border-radius: 8px;
+    }
+
+    .reset-password-button {
+      text-decoration: none;
+      font-size: 0.9rem;
+    }
+  }
+
+  .signup-link {
+    margin: 1rem 0 0 0;
+    text-align: center;
+    color: #666;
+
+    a {
+      text-decoration: none;
+      font-weight: 500;
+    }
+  }
+
+  .demo-credentials {
+    width: 100%;
+    max-width: 400px;
+
+    .demo-card {
+      padding: 1rem;
+      border-radius: 12px;
+      background: rgba(255, 255, 255, 0.9);
+      text-align: center;
+
+      h3 {
+        margin: 0 0 0.5rem 0;
+        color: #333;
+        font-size: 1rem;
+      }
+
+      p {
+        margin: 0.25rem 0;
+        font-size: 0.9rem;
+        color: #666;
+      }
+    }
+  }
+}
+
+// Dark theme styles
+:host-context(.dark-theme) {
+  .login-container {
+    background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+
+    .login-card {
+      background: rgba(40, 44, 52, 0.95);
+      color: #ffffff;
+
+      .login-title {
+        color: #ffffff;
+      }
+
+      mat-card-subtitle {
+        color: #b0b0b0;
+      }
+    }
+
+    .demo-card {
+      background: rgba(40, 44, 52, 0.9);
+      color: #ffffff;
+
+      h3 {
+        color: #ffffff;
+      }
+
+      p {
+        color: #b0b0b0;
+      }
+    }
+
+    .signup-link {
+      color: #b0b0b0;
+    }
+  }
+}
+
+// Responsive design
+@media (max-width: 768px) {
+  .login-container {
+    padding: 10px;
+
+    .login-card {
+      padding: 1.5rem;
+    }
+
+    .theme-toggle {
+      top: 10px;
+      right: 10px;
+    }
+  }
+}
+
+// Material form field customization
+mat-form-field {
+  .mat-mdc-form-field-subscript-wrapper {
+    margin-top: 0.25rem;
+  }
+}
+
+// Loading state
+.login-button:disabled {
+  opacity: 0.7;
+}

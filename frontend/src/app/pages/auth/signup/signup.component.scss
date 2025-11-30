@@ -1,0 +1,160 @@
+.signup-container {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  position: relative;
+
+  .theme-toggle {
+    position: absolute;
+    top: 20px;
+    right: 20px;
+    z-index: 10;
+
+    button {
+      background: rgba(255, 255, 255, 0.1);
+      color: white;
+      backdrop-filter: blur(10px);
+      
+      &:hover {
+        background: rgba(255, 255, 255, 0.2);
+      }
+    }
+  }
+
+  .signup-card-container {
+    width: 100%;
+    max-width: 450px;
+  }
+
+  .signup-card {
+    padding: 2rem;
+    border-radius: 16px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(10px);
+    background: rgba(255, 255, 255, 0.95);
+
+    .signup-title {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      font-size: 1.8rem;
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 0.5rem;
+
+      .app-icon {
+        font-size: 2rem;
+        color: #667eea;
+      }
+    }
+
+    mat-card-subtitle {
+      color: #666;
+      margin-bottom: 1.5rem;
+    }
+  }
+
+  .full-width {
+    width: 100%;
+    margin-bottom: 1rem;
+  }
+
+  .form-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    margin-top: 1.5rem;
+
+    .signup-button {
+      height: 48px;
+      font-size: 1rem;
+      font-weight: 500;
+      border-radius: 8px;
+    }
+  }
+
+  .login-link {
+    margin: 1rem 0 0 0;
+    text-align: center;
+    color: #666;
+
+    a {
+      text-decoration: none;
+      font-weight: 500;
+    }
+  }
+}
+
+// Dark theme styles
+:host-context(.dark-theme) {
+  .signup-container {
+    background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+
+    .signup-card {
+      background: rgba(40, 44, 52, 0.95);
+      color: #ffffff;
+
+      .signup-title {
+        color: #ffffff;
+      }
+
+      mat-card-subtitle {
+        color: #b0b0b0;
+      }
+    }
+
+    .login-link {
+      color: #b0b0b0;
+    }
+  }
+}
+
+// Responsive design
+@media (max-width: 768px) {
+  .signup-container {
+    padding: 10px;
+
+    .signup-card {
+      padding: 1.5rem;
+    }
+
+    .theme-toggle {
+      top: 10px;
+      right: 10px;
+    }
+  }
+}
+
+// Material form field customization
+mat-form-field {
+  .mat-mdc-form-field-subscript-wrapper {
+    margin-top: 0.25rem;
+  }
+}
+
+// Loading state
+.signup-button:disabled {
+  opacity: 0.7;
+}
+
+// Password strength indicator could be added here
+.password-strength {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  
+  &.weak {
+    color: #f44336;
+  }
+  
+  &.medium {
+    color: #ff9800;
+  }
+  
+  &.strong {
+    color: #4caf50;
+  }
+}

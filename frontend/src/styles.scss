@@ -1,0 +1,191 @@
+
+// Include theming for Angular Material with `mat.theme()`.
+// This Sass mixin will define CSS variables that are used for styling Angular Material
+// components according to the Material 3 design spec.
+// Learn more about theming and how to use it for your application's
+// custom components at https://material.angular.dev/guide/theming
+@use '@angular/material' as mat;
+
+html {
+  @include mat.theme((
+    color: (
+      primary: mat.$azure-palette,
+      tertiary: mat.$blue-palette,
+    ),
+    typography: Roboto,
+    density: 0,
+  ));
+}
+
+body {
+  // Default the application to a light color theme. This can be changed to
+  // `dark` to enable the dark color theme, or to `light dark` to defer to the
+  // user's system settings.
+  color-scheme: light;
+
+  // Set a default background, font and text colors for the application using
+  // Angular Material's system-level CSS variables. Learn more about these
+  // variables at https://material.angular.dev/guide/system-variables
+  background-color: var(--mat-sys-surface);
+  color: var(--mat-sys-on-surface);
+  font: var(--mat-sys-body-medium);
+
+  // Reset the user agent margin.
+  margin: 0;
+}
+// You can add global styles to this file, and also import other style files
+@import '@angular/material/prebuilt-themes/azure-blue.css';
+
+// Global theme variables
+:root {
+  --primary-color: #3f51b5;
+  --accent-color: #ff4081;
+  --warn-color: #f44336;
+}
+
+// Global styles
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: 'Roboto', 'Helvetica Neue', sans-serif;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+// Light theme (default)
+body.light-theme {
+  background-color: #fafafa;
+  color: #333;
+}
+
+// Dark theme
+body.dark-theme {
+  background-color: #121212;
+  color: #ffffff;
+}
+
+// Utility classes
+.full-width {
+  width: 100% !important;
+}
+
+.text-center {
+  text-align: center !important;
+}
+
+.flex-center {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.flex-between {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+// Material overrides for better theming
+.mat-mdc-form-field {
+  .mat-mdc-form-field-subscript-wrapper {
+    margin-top: 0.25rem;
+  }
+}
+
+.mat-mdc-card {
+  .mat-mdc-card-header {
+    .mat-mdc-card-title {
+      margin: 0;
+    }
+  }
+}
+
+// Dark theme material overrides
+body.dark-theme {
+  .mat-mdc-card {
+    background: #1e1e1e;
+    color: #ffffff;
+  }
+
+  .mat-mdc-form-field {
+    .mat-mdc-form-field-label {
+      color: #b0b0b0;
+    }
+  }
+
+  .mat-mdc-table {
+    background: #1e1e1e;
+    
+    .mat-mdc-header-cell {
+      color: #ffffff;
+    }
+    
+    .mat-mdc-cell {
+      color: #ffffff;
+    }
+  }
+}
+
+// Scrollbar styles
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.3);
+  }
+}
+
+body.dark-theme {
+  ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+
+    &:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+  }
+}
+
+// Loading animation
+@keyframes pulse {
+  0% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.loading {
+  animation: pulse 2s infinite;
+}
+
+// Responsive helpers
+@media (max-width: 599px) {
+  .hide-mobile {
+    display: none !important;
+  }
+}
+
+@media (min-width: 600px) {
+  .hide-desktop {
+    display: none !important;
+  }
+}
+
+html, body { height: 100%; }
+body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }

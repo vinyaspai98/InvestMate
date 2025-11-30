@@ -1,0 +1,40 @@
+# Ignore Git files
+.git
+.gitignore
+
+# Ignore build artifacts
+main
+*.exe
+*.out
+
+# Ignore logs
+*.log
+
+# Ignore environment files (except example)
+.env
+.env.local
+.env.development
+.env.production
+
+# Ignore IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Ignore OS files
+.DS_Store
+Thumbs.db
+
+# Ignore test files
+*_test.go
+coverage.txt
+coverage.html
+
+# Ignore documentation
+README.md
+docs/
+
+# Ignore temporary files
+tmp/
+temp/
