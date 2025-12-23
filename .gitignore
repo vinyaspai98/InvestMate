@@ -73,6 +73,7 @@ go.work
 # Build output
 /backend/bin/
 /backend/build/
+backend/.config/
 
 # Go module cache
 /backend/pkg/mod/
