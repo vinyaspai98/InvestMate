@@ -5,8 +5,9 @@ import { MatCardModule } from '@angular/material/card';
 import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatGridListModule } from '@angular/material/grid-list';
-import { Observable } from 'rxjs';
-import { MockDataService } from '../../services/mock-data.service';
+import { Observable, of } from 'rxjs';
+import { tap, catchError } from 'rxjs/operators';
+import { InvestmentService } from '../../services/investment.service';
 import { CategorySummary, NetWorth, InvestmentCategory } from '../../models/investment.model';
 
 @Component({
@@ -25,6 +26,8 @@ import { CategorySummary, NetWorth, InvestmentCategory } from '../../models/inve
 export class DashboardComponent implements OnInit {
   netWorth$: Observable<NetWorth>;
   categorySummaries$: Observable<CategorySummary[]>;
+  isLoading = true;
+  error: string | null = null;
   
   categoryDetails = [
     {
@@ -39,7 +42,7 @@ export class DashboardComponent implements OnInit {
       title: 'Mutual Funds',
       icon: 'account_balance',
       color: '#2196f3',
-      route: '/investments/mutual_funds'
+      route: '/investments/mutualfunds'
     },
     {
       category: InvestmentCategory.FDS,
@@ -65,11 +68,33 @@ export class DashboardComponent implements OnInit {
   ];
 
   constructor(
-    private mockDataService: MockDataService,
+    private investmentService: InvestmentService,
     private router: Router
   ) {
-    this.netWorth$ = this.mockDataService.getNetWorth();
-    this.categorySummaries$ = this.mockDataService.getAllCategorySummaries();
+    this.netWorth$ = this.investmentService.getNetWorth().pipe(
+      tap(() => this.isLoading = false),
+      catchError(error => {
+        console.error('Error loading net worth:', error);
+        this.error = error.message || 'Failed to load dashboard data. Please try again.';
+        this.isLoading = false;
+        
+        // If 401 Unauthorized, redirect to login
+        if (error.message?.includes('Unauthorized') || error.message?.includes('log in')) {
+          this.router.navigate(['/login']);
+        }
+        
+        // Return empty data to prevent breaking the UI
+        return of({ totalAssets: 0, totalLiabilities: 0, netWorth: 0 });
+      })
+    );
+    
+    this.categorySummaries$ = this.investmentService.getCategorySummaries().pipe(
+      catchError(error => {
+        console.error('Error loading category summaries:', error);
+        // Return empty array to prevent breaking the UI
+        return of([]);
+      })
+    );
   }
 
   ngOnInit(): void {
@@ -85,17 +110,11 @@ export class DashboardComponent implements OnInit {
   }
 
   formatCurrency(amount: number): string {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(amount);
+    return this.investmentService.formatCurrency(amount);
   }
 
   formatPercentage(percentage: number): string {
-    const sign = percentage >= 0 ? '+' : '';
-    return `${sign}${percentage.toFixed(2)}%`;
+    return this.investmentService.formatPercentage(percentage);
   }
 
   isPositive(value: number): boolean {

@@ -132,6 +132,12 @@
       mat-card-content {
         padding: 1.5rem;
 
+        .chart-container {
+          height: 400px;
+          width: 100%;
+          position: relative;
+        }
+
         .chart-placeholder {
           height: 300px;
           display: flex;
@@ -151,6 +157,20 @@
           span {
             font-size: 1rem;
             opacity: 0.7;
+          }
+        }
+
+        mat-chip {
+          cursor: pointer;
+          transition: all 0.3s ease;
+
+          &.selected {
+            background-color: #2196f3 !important;
+            color: white !important;
+          }
+
+          &:hover:not(.selected) {
+            background-color: rgba(33, 150, 243, 0.1);
           }
         }
       }

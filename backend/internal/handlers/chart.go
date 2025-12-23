@@ -145,11 +145,10 @@ func (h *ChartHandler) generatePortfolioChart(ctx context.Context, userID string
 func (h *ChartHandler) getTransactionsInPeriod(ctx context.Context, userID string, category models.InvestmentCategory, startDate, endDate time.Time) ([]models.Transaction, error) {
 	var transactions []models.Transaction
 
+	// Simplified query - removed range queries and OrderBy to avoid composite index
+	// We'll filter by category and sort in memory
 	iter := h.firestoreClient.Collection("users").Doc(userID).Collection("transactions").
 		Where("category", "==", string(category)).
-		Where("date", ">=", startDate).
-		Where("date", "<=", endDate).
-		OrderBy("date", firestore.Asc).
 		Documents(ctx)
 
 	for {
@@ -165,8 +164,22 @@ func (h *ChartHandler) getTransactionsInPeriod(ctx context.Context, userID strin
 		if err := doc.DataTo(&transaction); err != nil {
 			return nil, err
 		}
-		transaction.ID = doc.Ref.ID
-		transactions = append(transactions, transaction)
+
+		// Filter by date range in memory
+		if transaction.Date.After(startDate) && transaction.Date.Before(endDate) ||
+			transaction.Date.Equal(startDate) || transaction.Date.Equal(endDate) {
+			transaction.ID = doc.Ref.ID
+			transactions = append(transactions, transaction)
+		}
+	}
+
+	// Sort by date in memory (ascending)
+	for i := 0; i < len(transactions)-1; i++ {
+		for j := i + 1; j < len(transactions); j++ {
+			if transactions[i].Date.After(transactions[j].Date) {
+				transactions[i], transactions[j] = transactions[j], transactions[i]
+			}
+		}
 	}
 
 	return transactions, nil
@@ -175,10 +188,8 @@ func (h *ChartHandler) getTransactionsInPeriod(ctx context.Context, userID strin
 func (h *ChartHandler) getAllTransactionsInPeriod(ctx context.Context, userID string, startDate, endDate time.Time) ([]models.Transaction, error) {
 	var transactions []models.Transaction
 
+	// Simplified query - removed range queries and OrderBy to avoid composite index
 	iter := h.firestoreClient.Collection("users").Doc(userID).Collection("transactions").
-		Where("date", ">=", startDate).
-		Where("date", "<=", endDate).
-		OrderBy("date", firestore.Asc).
 		Documents(ctx)
 
 	for {
@@ -194,8 +205,22 @@ func (h *ChartHandler) getAllTransactionsInPeriod(ctx context.Context, userID st
 		if err := doc.DataTo(&transaction); err != nil {
 			return nil, err
 		}
-		transaction.ID = doc.Ref.ID
-		transactions = append(transactions, transaction)
+
+		// Filter by date range in memory
+		if transaction.Date.After(startDate) && transaction.Date.Before(endDate) ||
+			transaction.Date.Equal(startDate) || transaction.Date.Equal(endDate) {
+			transaction.ID = doc.Ref.ID
+			transactions = append(transactions, transaction)
+		}
+	}
+
+	// Sort by date in memory (ascending)
+	for i := 0; i < len(transactions)-1; i++ {
+		for j := i + 1; j < len(transactions); j++ {
+			if transactions[i].Date.After(transactions[j].Date) {
+				transactions[i], transactions[j] = transactions[j], transactions[i]
+			}
+		}
 	}
 
 	return transactions, nil

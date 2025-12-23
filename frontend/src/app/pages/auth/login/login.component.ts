@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { Router, RouterModule } from '@angular/router';
@@ -39,7 +39,8 @@ export class LoginComponent {
     private authService: AuthService,
     private router: Router,
     private snackBar: MatSnackBar,
-    public themeService: ThemeService
+    public themeService: ThemeService,
+    private cdr: ChangeDetectorRef
   ) {
     this.loginForm = this.fb.group({
       email: ['user@investmate.com', [Validators.required, Validators.email]],
@@ -50,19 +51,21 @@ export class LoginComponent {
   onLogin(): void {
     if (this.loginForm.valid) {
       this.isLoading = true;
+      this.cdr.detectChanges(); // Trigger change detection immediately
+      
       const { email, password } = this.loginForm.value;
 
       this.authService.login({ email, password }).subscribe({
         next: (user) => {
           this.snackBar.open('Login successful!', 'Close', { duration: 3000 });
           this.router.navigate(['/dashboard']);
+          this.isLoading = false;
+          this.cdr.detectChanges();
         },
         error: (error) => {
           this.snackBar.open('Login failed. Please check your credentials.', 'Close', { duration: 5000 });
           this.isLoading = false;
-        },
-        complete: () => {
-          this.isLoading = false;
+          this.cdr.detectChanges();
         }
       });
     } else {

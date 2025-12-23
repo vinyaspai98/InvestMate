@@ -148,9 +148,9 @@ func (h *TransactionHandler) GetAllTransactions(c *gin.Context) {
 func (h *TransactionHandler) getTransactionsByCategory(ctx context.Context, userID string, category models.InvestmentCategory) ([]models.Transaction, error) {
 	var transactions []models.Transaction
 
+	// Simplified query - removed OrderBy to avoid composite index requirement
 	iter := h.firestoreClient.Collection("users").Doc(userID).Collection("transactions").
 		Where("category", "==", string(category)).
-		OrderBy("date", firestore.Desc).
 		Documents(ctx)
 
 	for {
@@ -168,6 +168,15 @@ func (h *TransactionHandler) getTransactionsByCategory(ctx context.Context, user
 		}
 		transaction.ID = doc.Ref.ID
 		transactions = append(transactions, transaction)
+	}
+
+	// Sort by date in memory (descending)
+	for i := 0; i < len(transactions)-1; i++ {
+		for j := i + 1; j < len(transactions); j++ {
+			if transactions[i].Date.Before(transactions[j].Date) {
+				transactions[i], transactions[j] = transactions[j], transactions[i]
+			}
+		}
 	}
 
 	return transactions, nil
@@ -176,9 +185,9 @@ func (h *TransactionHandler) getTransactionsByCategory(ctx context.Context, user
 func (h *TransactionHandler) getTransactionsByRelatedID(ctx context.Context, userID, relatedID string) ([]models.Transaction, error) {
 	var transactions []models.Transaction
 
+	// Simplified query - removed OrderBy to avoid composite index requirement
 	iter := h.firestoreClient.Collection("users").Doc(userID).Collection("transactions").
 		Where("relatedId", "==", relatedID).
-		OrderBy("date", firestore.Desc).
 		Documents(ctx)
 
 	for {
@@ -198,14 +207,23 @@ func (h *TransactionHandler) getTransactionsByRelatedID(ctx context.Context, use
 		transactions = append(transactions, transaction)
 	}
 
+	// Sort by date in memory (descending)
+	for i := 0; i < len(transactions)-1; i++ {
+		for j := i + 1; j < len(transactions); j++ {
+			if transactions[i].Date.Before(transactions[j].Date) {
+				transactions[i], transactions[j] = transactions[j], transactions[i]
+			}
+		}
+	}
+
 	return transactions, nil
 }
 
 func (h *TransactionHandler) getAllUserTransactions(ctx context.Context, userID string) ([]models.Transaction, error) {
 	var transactions []models.Transaction
 
+	// Simplified query - removed OrderBy to avoid needing an index
 	iter := h.firestoreClient.Collection("users").Doc(userID).Collection("transactions").
-		OrderBy("date", firestore.Desc).
 		Documents(ctx)
 
 	for {
@@ -223,6 +241,15 @@ func (h *TransactionHandler) getAllUserTransactions(ctx context.Context, userID 
 		}
 		transaction.ID = doc.Ref.ID
 		transactions = append(transactions, transaction)
+	}
+
+	// Sort by date in memory (descending)
+	for i := 0; i < len(transactions)-1; i++ {
+		for j := i + 1; j < len(transactions); j++ {
+			if transactions[i].Date.Before(transactions[j].Date) {
+				transactions[i], transactions[j] = transactions[j], transactions[i]
+			}
+		}
 	}
 
 	return transactions, nil

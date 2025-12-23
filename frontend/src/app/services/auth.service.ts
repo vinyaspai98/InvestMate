@@ -1,66 +1,129 @@
-import { Injectable } from '@angular/core';
-import { Observable, BehaviorSubject, of } from 'rxjs';
+import { Injectable, inject } from '@angular/core';
+import { Observable, BehaviorSubject, of, from, throwError } from 'rxjs';
+import { map, catchError, tap, switchMap } from 'rxjs/operators';
+import { 
+  Auth, 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword,
+  signOut,
+  sendPasswordResetEmail,
+  updatePassword,
+  updateProfile,
+  User as FirebaseUser,
+  user
+} from '@angular/fire/auth';
 import { User, AuthRequest, SignupRequest } from '../models/user.model';
 
 @Injectable({
   providedIn: 'root'
 })
 export class AuthService {
+  private auth = inject(Auth);
   private currentUserSubject = new BehaviorSubject<User | null>(null);
   public currentUser$ = this.currentUserSubject.asObservable();
 
-  // Mock user for demonstration
-  private mockUser: User = {
-    id: '1',
-    email: 'user@investmate.com',
-    name: 'John Doe',
-    contact: '+91 9876543210',
-    preferences: {
-      currency: 'INR',
-      theme: 'light',
-      notifications: true
-    }
-  };
-
   constructor() {
-    // Check for existing session
-    const savedUser = localStorage.getItem('currentUser');
-    if (savedUser) {
-      this.currentUserSubject.next(JSON.parse(savedUser));
+    // Subscribe to Firebase auth state changes
+    user(this.auth).subscribe(firebaseUser => {
+      if (firebaseUser) {
+        this.mapFirebaseUserToUser(firebaseUser).then(user => {
+          this.currentUserSubject.next(user);
+        });
+      } else {
+        this.currentUserSubject.next(null);
+      }
+    });
+  }
+
+  async getIdToken(): Promise<string | null> {
+    const user = this.auth.currentUser;
+    if (user) {
+      try {
+        return await user.getIdToken();
+      } catch (error) {
+        console.error('Error getting ID token:', error);
+        return null;
+      }
     }
+    return null;
   }
 
   login(authRequest: AuthRequest): Observable<User> {
-    // Mock authentication - in real app, this would call Firebase Auth
-    if (authRequest.email === 'user@investmate.com' && authRequest.password === 'password') {
-      localStorage.setItem('currentUser', JSON.stringify(this.mockUser));
-      this.currentUserSubject.next(this.mockUser);
-      return of(this.mockUser);
-    }
-    throw new Error('Invalid credentials');
+    return from(
+      signInWithEmailAndPassword(this.auth, authRequest.email, authRequest.password)
+    ).pipe(
+      switchMap(credential => this.mapFirebaseUserToUser(credential.user)),
+      tap(user => this.currentUserSubject.next(user)),
+      catchError(error => {
+        console.error('Login error:', error);
+        let errorMessage = 'Login failed. Please try again.';
+        
+        switch (error.code) {
+          case 'auth/user-not-found':
+            errorMessage = 'No account found with this email address.';
+            break;
+          case 'auth/wrong-password':
+            errorMessage = 'Incorrect password. Please try again.';
+            break;
+          case 'auth/invalid-email':
+            errorMessage = 'Invalid email address format.';
+            break;
+          case 'auth/user-disabled':
+            errorMessage = 'This account has been disabled.';
+            break;
+          case 'auth/too-many-requests':
+            errorMessage = 'Too many failed login attempts. Please try again later.';
+            break;
+        }
+        
+        return throwError(() => new Error(errorMessage));
+      })
+    );
   }
 
   signup(signupRequest: SignupRequest): Observable<User> {
-    // Mock signup - in real app, this would call Firebase Auth
-    const newUser: User = {
-      id: Date.now().toString(),
-      email: signupRequest.email,
-      name: signupRequest.name,
-      preferences: {
-        currency: 'INR',
-        theme: 'light',
-        notifications: true
-      }
-    };
-    
-    localStorage.setItem('currentUser', JSON.stringify(newUser));
-    this.currentUserSubject.next(newUser);
-    return of(newUser);
+    return from(
+      createUserWithEmailAndPassword(this.auth, signupRequest.email, signupRequest.password)
+    ).pipe(
+      switchMap(credential => {
+        // Update display name in Firebase
+        return from(updateProfile(credential.user, { 
+          displayName: signupRequest.name 
+        })).pipe(
+          map(() => credential.user)
+        );
+      }),
+      switchMap(firebaseUser => this.mapFirebaseUserToUser(firebaseUser)),
+      tap(user => this.currentUserSubject.next(user)),
+      catchError(error => {
+        console.error('Signup error:', error);
+        let errorMessage = 'Signup failed. Please try again.';
+        
+        switch (error.code) {
+          case 'auth/email-already-in-use':
+            errorMessage = 'An account with this email already exists.';
+            break;
+          case 'auth/invalid-email':
+            errorMessage = 'Invalid email address format.';
+            break;
+          case 'auth/weak-password':
+            errorMessage = 'Password is too weak. Please use a stronger password.';
+            break;
+        }
+        
+        return throwError(() => new Error(errorMessage));
+      })
+    );
   }
 
-  logout(): void {
-    localStorage.removeItem('currentUser');
-    this.currentUserSubject.next(null);
+  logout(): Observable<void> {
+    return from(signOut(this.auth)).pipe(
+      tap(() => this.currentUserSubject.next(null)),
+      catchError(error => {
+        console.error('Logout error:', error);
+        return throwError(() => new Error('Logout failed. Please try again.'));
+      })
+    );
   }
 
   isAuthenticated(): boolean {
@@ -72,20 +135,98 @@ export class AuthService {
   }
 
   updateUser(user: User): Observable<User> {
-    localStorage.setItem('currentUser', JSON.stringify(user));
-    this.currentUserSubject.next(user);
-    return of(user);
+    const firebaseUser = this.auth.currentUser;
+    
+    if (!firebaseUser) {
+      return throwError(() => new Error('No authenticated user'));
+    }
+
+    return from(updateProfile(firebaseUser, {
+      displayName: user.name
+    })).pipe(
+      map(() => {
+        const updatedUser: User = {
+          ...user,
+          id: firebaseUser.uid,
+          email: firebaseUser.email || user.email
+        };
+        this.currentUserSubject.next(updatedUser);
+        return updatedUser;
+      }),
+      catchError(error => {
+        console.error('Update user error:', error);
+        return throwError(() => new Error('Failed to update profile. Please try again.'));
+      })
+    );
   }
 
   resetPassword(email: string): Observable<boolean> {
-    // Mock password reset
-    console.log('Password reset requested for:', email);
-    return of(true);
+    return from(sendPasswordResetEmail(this.auth, email)).pipe(
+      map(() => true),
+      catchError(error => {
+        console.error('Password reset error:', error);
+        let errorMessage = 'Failed to send password reset email.';
+        
+        switch (error.code) {
+          case 'auth/user-not-found':
+            errorMessage = 'No account found with this email address.';
+            break;
+          case 'auth/invalid-email':
+            errorMessage = 'Invalid email address format.';
+            break;
+        }
+        
+        return throwError(() => new Error(errorMessage));
+      })
+    );
   }
 
   changePassword(currentPassword: string, newPassword: string): Observable<boolean> {
-    // Mock password change
-    console.log('Password change requested');
-    return of(true);
+    const firebaseUser = this.auth.currentUser;
+    
+    if (!firebaseUser || !firebaseUser.email) {
+      return throwError(() => new Error('No authenticated user'));
+    }
+
+    // Re-authenticate user before changing password
+    return from(
+      signInWithEmailAndPassword(this.auth, firebaseUser.email, currentPassword)
+    ).pipe(
+      switchMap(() => from(updatePassword(firebaseUser, newPassword))),
+      map(() => true),
+      catchError(error => {
+        console.error('Change password error:', error);
+        let errorMessage = 'Failed to change password.';
+        
+        switch (error.code) {
+          case 'auth/wrong-password':
+            errorMessage = 'Current password is incorrect.';
+            break;
+          case 'auth/weak-password':
+            errorMessage = 'New password is too weak.';
+            break;
+          case 'auth/requires-recent-login':
+            errorMessage = 'Please log in again before changing your password.';
+            break;
+        }
+        
+        return throwError(() => new Error(errorMessage));
+      })
+    );
+  }
+
+  // Helper method to map Firebase User to our User model
+  private async mapFirebaseUserToUser(firebaseUser: FirebaseUser): Promise<User> {
+    return {
+      id: firebaseUser.uid,
+      email: firebaseUser.email || '',
+      name: firebaseUser.displayName || 'User',
+      contact: firebaseUser.phoneNumber || '',
+      preferences: {
+        currency: 'INR',
+        theme: 'light',
+        notifications: true
+      }
+    };
   }
 }

@@ -94,7 +94,8 @@ export class MockDataService {
       type: TransactionType.BUY,
       amount: 50000,
       date: new Date('2024-01-15'),
-      notes: 'Initial purchase'
+      notes: 'Initial purchase',
+      category: InvestmentCategory.STOCKS
     },
     {
       id: 't2',
@@ -102,7 +103,8 @@ export class MockDataService {
       type: TransactionType.DEPOSIT,
       amount: 10000,
       date: new Date('2024-01-10'),
-      notes: 'Monthly SIP'
+      notes: 'Monthly SIP',
+      category: InvestmentCategory.MUTUAL_FUNDS
     },
     {
       id: 't3',
@@ -110,7 +112,8 @@ export class MockDataService {
       type: TransactionType.PAYMENT,
       amount: 25000,
       date: new Date('2024-09-01'),
-      notes: 'EMI payment'
+      notes: 'EMI payment',
+      category: InvestmentCategory.LOANS
     }
   ];
 

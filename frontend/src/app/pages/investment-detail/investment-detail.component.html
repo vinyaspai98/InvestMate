@@ -58,17 +58,22 @@
         <mat-card-title>Performance Chart</mat-card-title>
         <div class="chart-filters">
           <mat-chip-set>
-            <mat-chip>1M</mat-chip>
-            <mat-chip selected>3M</mat-chip>
-            <mat-chip>1Y</mat-chip>
-            <mat-chip>All</mat-chip>
+            <mat-chip 
+              *ngFor="let period of chartPeriods"
+              [class.selected]="selectedPeriod === period.value"
+              (click)="onPeriodChange(period.value)">
+              {{ period.label }}
+            </mat-chip>
           </mat-chip-set>
         </div>
       </mat-card-header>
       <mat-card-content>
-        <div class="chart-placeholder">
-          <mat-icon>show_chart</mat-icon>
-          <span>Chart visualization will be implemented here</span>
+        <div class="chart-container">
+          <canvas baseChart
+            [data]="lineChartData"
+            [options]="lineChartOptions"
+            [type]="'line'">
+          </canvas>
         </div>
       </mat-card-content>
     </mat-card>
@@ -85,7 +90,7 @@
               <mat-card-title>Your {{ categoryDetail?.title }}</mat-card-title>
             </mat-card-header>
             <mat-card-content>
-              <table mat-table [dataSource]="(investments$ | async) || []" class="investments-table">
+              <table mat-table [dataSource]="investmentsDataSource" class="investments-table">
                 <!-- Name Column -->
                 <ng-container matColumnDef="name">
                   <th mat-header-cell *matHeaderCellDef>Name</th>
@@ -145,7 +150,7 @@
                 <tr mat-row *matRowDef="let row; columns: displayedColumns;" class="investment-row"></tr>
               </table>
 
-              <div class="no-data" *ngIf="(investments$ | async)?.length === 0">
+              <div class="no-data" *ngIf="investmentsDataSource.data.length === 0">
                 <mat-icon>info</mat-icon>
                 <span>No investments found for this category</span>
               </div>
@@ -162,7 +167,7 @@
               <mat-card-title>Transaction History</mat-card-title>
             </mat-card-header>
             <mat-card-content>
-              <table mat-table [dataSource]="(transactions$ | async) || []" class="transactions-table">
+              <table mat-table [dataSource]="transactionsDataSource" class="transactions-table">
                 <!-- Type Column -->
                 <ng-container matColumnDef="type">
                   <th mat-header-cell *matHeaderCellDef>Type</th>
@@ -201,7 +206,7 @@
                 <tr mat-row *matRowDef="let row; columns: transactionColumns;" class="transaction-row"></tr>
               </table>
 
-              <div class="no-data" *ngIf="(transactions$ | async)?.length === 0">
+              <div class="no-data" *ngIf="transactionsDataSource.data.length === 0">
                 <mat-icon>info</mat-icon>
                 <span>No transactions found for this category</span>
               </div>

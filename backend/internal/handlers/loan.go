@@ -231,9 +231,9 @@ func (h *LoanHandler) GetLoanSummary(c *gin.Context) {
 func (h *LoanHandler) getAllUserLoans(ctx context.Context, userID string) ([]models.Loan, error) {
 	var loans []models.Loan
 
+	// Simplified query - removed OrderBy to avoid composite index requirement
 	iter := h.firestoreClient.Collection("users").Doc(userID).Collection("loans").
 		Where("isActive", "==", true).
-		OrderBy("createdAt", firestore.Desc).
 		Documents(ctx)
 
 	for {
@@ -251,6 +251,15 @@ func (h *LoanHandler) getAllUserLoans(ctx context.Context, userID string) ([]mod
 		}
 		loan.ID = doc.Ref.ID
 		loans = append(loans, loan)
+	}
+
+	// Sort by createdAt in memory (descending)
+	for i := 0; i < len(loans)-1; i++ {
+		for j := i + 1; j < len(loans); j++ {
+			if loans[i].CreatedAt.Before(loans[j].CreatedAt) {
+				loans[i], loans[j] = loans[j], loans[i]
+			}
+		}
 	}
 
 	return loans, nil

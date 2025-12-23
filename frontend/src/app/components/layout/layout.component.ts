@@ -53,7 +53,7 @@ export class LayoutComponent implements OnInit {
     {
       label: 'Mutual Funds',
       icon: 'account_balance',
-      route: '/investments/mutual_funds',
+      route: '/investments/mutualFunds',
       active: false
     },
     {
@@ -122,8 +122,16 @@ export class LayoutComponent implements OnInit {
   }
 
   onLogout(): void {
-    this.authService.logout();
-    this.router.navigate(['/login']);
+    this.authService.logout().subscribe({
+      next: () => {
+        this.router.navigate(['/login']);
+      },
+      error: (error) => {
+        console.error('Logout error:', error);
+        // Still navigate to login even if there's an error
+        this.router.navigate(['/login']);
+      }
+    });
   }
 
   get isDarkTheme$(): Observable<boolean> {

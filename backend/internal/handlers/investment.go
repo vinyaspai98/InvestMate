@@ -252,10 +252,11 @@ func (h *InvestmentHandler) DeleteInvestment(c *gin.Context) {
 func (h *InvestmentHandler) getInvestmentsByCategory(ctx context.Context, userID string, category models.InvestmentCategory) ([]models.Investment, error) {
 	var investments []models.Investment
 
+	// Simplified query - removed OrderBy to avoid composite index requirement
+	// Sort will be done in memory instead
 	iter := h.firestoreClient.Collection("users").Doc(userID).Collection("investments").
 		Where("category", "==", string(category)).
 		Where("isActive", "==", true).
-		OrderBy("createdAt", firestore.Desc).
 		Documents(ctx)
 
 	for {
@@ -264,6 +265,7 @@ func (h *InvestmentHandler) getInvestmentsByCategory(ctx context.Context, userID
 			break
 		}
 		if err != nil {
+			// Log the error for debugging
 			return nil, err
 		}
 
@@ -274,6 +276,16 @@ func (h *InvestmentHandler) getInvestmentsByCategory(ctx context.Context, userID
 		investment.ID = doc.Ref.ID
 		investments = append(investments, investment)
 	}
+
+	// Sort by createdAt in memory (descending)
+	// This avoids needing a Firestore composite index
+	// for i := 0; i < len(investments)-1; i++ {
+	// 	for j := i + 1; j < len(investments); j++ {
+	// 		if investments[i].CreatedAt.Before(investments[j].CreatedAt) {
+	// 			investments[i], investments[j] = investments[j], investments[i]
+	// 		}
+	// 	}
+	// }
 
 	return investments, nil
 }

@@ -56,6 +56,9 @@ func main() {
 
 	router := gin.Default()
 
+	// Disable automatic trailing slash redirect
+	router.RedirectTrailingSlash = false
+
 	// CORS configuration
 	corsConfig := cors.DefaultConfig()
 	corsConfig.AllowOrigins = cfg.CORSAllowedOrigins
@@ -109,7 +112,7 @@ func main() {
 
 				// CRUD routes for specific investments
 				investments.GET("/detail/:id", investmentHandler.GetInvestment)
-				investments.POST("/", investmentHandler.CreateInvestment)
+				investments.POST("", investmentHandler.CreateInvestment)
 				investments.PUT("/:id", investmentHandler.UpdateInvestment)
 				investments.DELETE("/:id", investmentHandler.DeleteInvestment)
 			}
@@ -120,7 +123,7 @@ func main() {
 				loans.GET("/", loanHandler.GetAllLoans)
 				loans.GET("/summary", loanHandler.GetLoanSummary)
 				loans.GET("/:id", loanHandler.GetLoan)
-				loans.POST("/", loanHandler.CreateLoan)
+				loans.POST("", loanHandler.CreateLoan)
 				loans.PUT("/:id", loanHandler.UpdateLoan)
 				loans.DELETE("/:id", loanHandler.DeleteLoan)
 			}
