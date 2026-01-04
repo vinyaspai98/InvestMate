@@ -166,3 +166,4 @@ docker-compose.override.yml
 *~
 *.bak
 *.orig
+backend/configs/firebase-service-account.json
