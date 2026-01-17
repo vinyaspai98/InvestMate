@@ -1,13 +1,8 @@
 <mat-sidenav-container class="sidenav-container">
   <!-- Sidebar -->
-  <mat-sidenav 
-    #drawer 
-    class="sidenav" 
-    fixedInViewport
-    [attr.role]="(isHandset$ | async) ? 'dialog' : 'navigation'"
-    [mode]="(isHandset$ | async) ? 'over' : 'side'"
-    [opened]="(isHandset$ | async) === false">
-    
+  <mat-sidenav #drawer class="sidenav" fixedInViewport [attr.role]="(isHandset$ | async) ? 'dialog' : 'navigation'"
+    [mode]="(isHandset$ | async) ? 'over' : 'side'" [opened]="(isHandset$ | async) === false">
+
     <!-- Sidebar Header -->
     <div class="sidenav-header">
       <div class="app-logo">
@@ -32,11 +27,7 @@
     <!-- Navigation Menu -->
     <mat-nav-list class="nav-list">
       <ng-container *ngFor="let item of navigationItems">
-        <a 
-          mat-list-item 
-          [routerLink]="item.route"
-          [class.active]="item.active"
-          (click)="onNavigate(item.route)"
+        <a mat-list-item [routerLink]="item.route" [class.active]="item.active" (click)="onNavigate(item.route)"
           class="nav-item">
           <mat-icon matListItemIcon>{{ item.icon }}</mat-icon>
           <span matListItemTitle>{{ item.label }}</span>
@@ -63,23 +54,19 @@
   <!-- Main Content -->
   <mat-sidenav-content>
     <!-- Top Toolbar -->
-    <mat-toolbar color="primary" class="toolbar">
+    <mat-toolbar [color]="(isDarkTheme$ | async) ? null : 'primary'" class="toolbar">
       <!-- Mobile Menu Button -->
-      <button
-        type="button"
-        aria-label="Toggle sidenav"
-        mat-icon-button
-        (click)="drawer.toggle()"
+      <button type="button" aria-label="Toggle sidenav" mat-icon-button (click)="drawer.toggle()"
         *ngIf="isHandset$ | async">
         <mat-icon aria-label="Side nav toggle icon">menu</mat-icon>
       </button>
-      
+
       <!-- Page Title -->
       <span class="toolbar-title">Welcome to InvestMate</span>
-      
+
       <!-- Spacer -->
       <span class="toolbar-spacer"></span>
-      
+
       <!-- Desktop User Menu -->
       <div class="desktop-user-menu" *ngIf="(isHandset$ | async) === false">
         <button mat-button [matMenuTriggerFor]="userMenu" class="user-menu-trigger">

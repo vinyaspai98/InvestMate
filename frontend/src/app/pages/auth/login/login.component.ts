@@ -43,8 +43,8 @@ export class LoginComponent {
     private cdr: ChangeDetectorRef
   ) {
     this.loginForm = this.fb.group({
-      email: ['user@investmate.com', [Validators.required, Validators.email]],
-      password: ['password', [Validators.required, Validators.minLength(6)]]
+      email: ['test@investmate.com', [Validators.required, Validators.email]],
+      password: ['test123', [Validators.required, Validators.minLength(6)]]
     });
   }
 
@@ -52,7 +52,7 @@ export class LoginComponent {
     if (this.loginForm.valid) {
       this.isLoading = true;
       this.cdr.detectChanges(); // Trigger change detection immediately
-      
+
       const { email, password } = this.loginForm.value;
 
       this.authService.login({ email, password }).subscribe({

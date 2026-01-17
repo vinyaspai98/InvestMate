@@ -19,13 +19,7 @@
         <form [formGroup]="loginForm" (ngSubmit)="onLogin()" novalidate>
           <mat-form-field appearance="outline" class="full-width">
             <mat-label>Email</mat-label>
-            <input
-              matInput
-              type="email"
-              formControlName="email"
-              placeholder="Enter your email"
-              autocomplete="username"
-            >
+            <input matInput type="email" formControlName="email" placeholder="Enter your email" autocomplete="username">
             <mat-icon matSuffix>email</mat-icon>
             <mat-error *ngIf="loginForm.get('email')?.touched && loginForm.get('email')?.invalid">
               {{ getErrorMessage('email') }}
@@ -34,21 +28,10 @@
 
           <mat-form-field appearance="outline" class="full-width">
             <mat-label>Password</mat-label>
-            <input
-              matInput
-              [type]="hidePassword ? 'password' : 'text'"
-              formControlName="password"
-              placeholder="Enter your password"
-              autocomplete="current-password"
-            >
-            <button
-              mat-icon-button
-              matSuffix
-              type="button"
-              (click)="hidePassword = !hidePassword"
-              [attr.aria-label]="'Hide password'"
-              [attr.aria-pressed]="hidePassword"
-            >
+            <input matInput [type]="hidePassword ? 'password' : 'text'" formControlName="password"
+              placeholder="Enter your password" autocomplete="current-password">
+            <button mat-icon-button matSuffix type="button" (click)="hidePassword = !hidePassword"
+              [attr.aria-label]="'Hide password'" [attr.aria-pressed]="hidePassword">
               <mat-icon>{{ hidePassword ? 'visibility_off' : 'visibility' }}</mat-icon>
             </button>
             <mat-error *ngIf="loginForm.get('password')?.touched && loginForm.get('password')?.invalid">
@@ -57,24 +40,13 @@
           </mat-form-field>
 
           <div class="form-actions">
-            <button
-              mat-raised-button
-              color="primary"
-              type="submit"
-              class="full-width login-button"
-              [disabled]="isLoading"
-            >
+            <button mat-raised-button color="primary" type="submit" class="full-width login-button"
+              [disabled]="isLoading">
               <mat-icon *ngIf="isLoading">hourglass_empty</mat-icon>
               {{ isLoading ? 'Signing in...' : 'Sign In' }}
             </button>
 
-            <button
-              mat-button
-              type="button"
-              color="accent"
-              (click)="onResetPassword()"
-              class="reset-password-button"
-            >
+            <button mat-button type="button" color="accent" (click)="onResetPassword()" class="reset-password-button">
               Forgot Password?
             </button>
           </div>
@@ -94,8 +66,8 @@
     <mat-card class="demo-card">
       <mat-card-content>
         <h3>Demo Credentials</h3>
-        <p><strong>Email:</strong> user@investmate.com</p>
-        <p><strong>Password:</strong> password</p>
+        <p><strong>Email:</strong> test@investmate.com</p>
+        <p><strong>Password:</strong> test123</p>
       </mat-card-content>
     </mat-card>
   </div>

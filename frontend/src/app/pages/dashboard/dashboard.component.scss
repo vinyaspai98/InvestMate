@@ -115,6 +115,9 @@
 
         mat-card-header {
           padding: 1.5rem 1.5rem 0.5rem 1.5rem;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
 
           .category-icon-container {
             width: 48px;
@@ -123,7 +126,6 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            margin-right: 1rem;
 
             mat-icon {
               color: white;
@@ -212,51 +214,7 @@
     }
   }
 
-  .quick-actions-section {
-    h2 {
-      font-size: 1.5rem;
-      font-weight: 600;
-      color: #333;
-      margin: 0 0 1.5rem 0;
-    }
 
-    .quick-actions-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 1rem;
-
-      .quick-action-card {
-        border-radius: 12px;
-        cursor: pointer;
-        transition: all 0.2s ease;
-        border: 1px solid rgba(0, 0, 0, 0.1);
-
-        &:hover {
-          transform: translateY(-2px);
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-        }
-
-        mat-card-content {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 0.5rem;
-          padding: 1.5rem;
-          text-align: center;
-
-          mat-icon {
-            font-size: 2rem;
-            color: #3f51b5;
-          }
-
-          span {
-            font-weight: 500;
-            color: #333;
-          }
-        }
-      }
-    }
-  }
 }
 
 // Dark theme styles
@@ -305,24 +263,7 @@
       }
     }
 
-    .quick-actions-section {
-      h2 {
-        color: #ffffff;
-      }
 
-      .quick-actions-grid {
-        .quick-action-card {
-          background: #1e1e1e;
-          border-color: rgba(255, 255, 255, 0.1);
-
-          mat-card-content {
-            span {
-              color: #ffffff;
-            }
-          }
-        }
-      }
-    }
   }
 }
 
@@ -349,20 +290,6 @@
       }
     }
 
-    .quick-actions-section {
-      .quick-actions-grid {
-        grid-template-columns: repeat(2, 1fr);
-      }
-    }
-  }
-}
 
-@media (max-width: 480px) {
-  .dashboard-container {
-    .quick-actions-section {
-      .quick-actions-grid {
-        grid-template-columns: 1fr;
-      }
-    }
   }
 }
