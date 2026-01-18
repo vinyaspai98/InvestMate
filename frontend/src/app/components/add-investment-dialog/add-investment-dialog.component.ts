@@ -164,6 +164,37 @@ export interface InvestmentDialogData {
         min-width: 300px;
       }
     }
+
+    // Dark theme styles
+    :host-context(.dark-theme) {
+      h2 {
+        background: #1e1e1e;
+        color: #ffffff;
+        border-bottom-color: rgba(255, 255, 255, 0.1);
+      }
+
+      mat-dialog-content {
+        background: #1e1e1e;
+        color: #ffffff;
+      }
+
+      mat-dialog-actions {
+        background: #1e1e1e;
+        border-top-color: rgba(255, 255, 255, 0.1);
+      }
+
+      // Material form field labels
+      mat-form-field {
+        .mat-mdc-form-field-label,
+        .mdc-floating-label {
+          color: rgba(255, 255, 255, 0.7) !important;
+        }
+
+        .mat-mdc-form-field-label.mdc-floating-label--float-above {
+          color: rgba(255, 255, 255, 0.9) !important;
+        }
+      }
+    }
   `]
 })
 export class AddInvestmentDialogComponent {
@@ -175,7 +206,7 @@ export class AddInvestmentDialogComponent {
     @Inject(MAT_DIALOG_DATA) public data: InvestmentDialogData
   ) {
     this.investmentForm = this.createForm();
-    
+
     if (data.mode === 'edit' && data.investment) {
       this.investmentForm.patchValue(data.investment);
     }
@@ -195,23 +226,23 @@ export class AddInvestmentDialogComponent {
         formConfig.ticker = [''];
         formConfig.currentValue = [0, [Validators.required, Validators.min(0)]];
         break;
-      
+
       case InvestmentCategory.MUTUAL_FUNDS:
         formConfig.currentValue = [0, [Validators.required, Validators.min(0)]];
         break;
-      
+
       case InvestmentCategory.FDS:
         formConfig.currentValue = [0, [Validators.required, Validators.min(0)]];
         formConfig.interestRate = [0, [Validators.required, Validators.min(0)]];
         formConfig.tenor = [0, [Validators.required, Validators.min(1)]];
         formConfig.maturityDate = [''];
         break;
-      
+
       case InvestmentCategory.INSURANCE:
         formConfig.currentValue = [0, [Validators.required, Validators.min(0)]];
         formConfig.tenor = [0, [Validators.required, Validators.min(1)]];
         break;
-      
+
       case InvestmentCategory.LOANS:
         formConfig.currentValue = [0, [Validators.required, Validators.min(0)]];
         formConfig.outstandingBalance = [0, [Validators.required, Validators.min(0)]];

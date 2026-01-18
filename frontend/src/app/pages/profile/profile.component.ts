@@ -262,6 +262,18 @@ import { User } from '../../models/user.model';
           }
         }
       }
+
+      // Material form field labels
+      mat-form-field {
+        .mat-mdc-form-field-label,
+        .mdc-floating-label {
+          color: rgba(255, 255, 255, 0.7) !important;
+        }
+
+        .mat-mdc-form-field-label.mdc-floating-label--float-above {
+          color: rgba(255, 255, 255, 0.9) !important;
+        }
+      }
     }
   `]
 })
@@ -320,7 +332,7 @@ export class ProfileComponent implements OnInit {
         ...this.currentUser,
         ...this.profileForm.value
       };
-      
+
       this.authService.updateUser(updatedUser).subscribe({
         next: () => {
           this.snackBar.open('Profile updated successfully!', 'Close', { duration: 3000 });
@@ -342,7 +354,7 @@ export class ProfileComponent implements OnInit {
           notifications: this.preferencesForm.get('notifications')?.value
         }
       };
-      
+
       this.authService.updateUser(updatedUser).subscribe({
         next: () => {
           this.snackBar.open('Preferences saved!', 'Close', { duration: 3000 });
@@ -361,7 +373,7 @@ export class ProfileComponent implements OnInit {
   onChangePassword(): void {
     if (this.passwordForm.valid) {
       const { currentPassword, newPassword } = this.passwordForm.value;
-      
+
       this.authService.changePassword(currentPassword, newPassword).subscribe({
         next: () => {
           this.snackBar.open('Password changed successfully!', 'Close', { duration: 3000 });

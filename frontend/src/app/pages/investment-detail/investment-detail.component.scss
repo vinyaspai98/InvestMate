@@ -221,7 +221,7 @@
             .profit-loss-cell {
               display: flex;
               flex-direction: column;
-              align-items: flex-end;
+              align-items: center;
 
               .percentage {
                 font-size: 0.8rem;
@@ -327,6 +327,16 @@
     }
 
     .tables-section {
+
+      // Tab labels styling for dark mode
+      .mat-mdc-tab-labels {
+        .mat-mdc-tab {
+          .mdc-tab__text-label {
+            color: #ffffff;
+          }
+        }
+      }
+
       .table-container {
         mat-card {
           background: #1e1e1e;
@@ -340,6 +350,7 @@
 
           .investments-table,
           .transactions-table {
+
             .investment-row,
             .transaction-row {
               &:hover {
@@ -406,7 +417,7 @@
 // Material table customizations
 .mat-mdc-table {
   background: transparent;
-  
+
   .mat-mdc-header-cell {
     font-weight: 600;
     color: #333;

@@ -18,7 +18,7 @@
       background: rgba(255, 255, 255, 0.1);
       color: white;
       backdrop-filter: blur(10px);
-      
+
       &:hover {
         background: rgba(255, 255, 255, 0.2);
       }
@@ -111,6 +111,19 @@
       color: #b0b0b0;
     }
   }
+
+  // Material form field labels
+  mat-form-field {
+
+    .mat-mdc-form-field-label,
+    .mdc-floating-label {
+      color: rgba(255, 255, 255, 0.7) !important;
+    }
+
+    .mat-mdc-form-field-label.mdc-floating-label--float-above {
+      color: rgba(255, 255, 255, 0.9) !important;
+    }
+  }
 }
 
 // Responsive design
@@ -145,15 +158,15 @@ mat-form-field {
 .password-strength {
   margin-top: 0.5rem;
   font-size: 0.8rem;
-  
+
   &.weak {
     color: #f44336;
   }
-  
+
   &.medium {
     color: #ff9800;
   }
-  
+
   &.strong {
     color: #4caf50;
   }

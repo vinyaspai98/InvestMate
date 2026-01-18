@@ -18,7 +18,7 @@
       background: rgba(255, 255, 255, 0.1);
       color: white;
       backdrop-filter: blur(10px);
-      
+
       &:hover {
         background: rgba(255, 255, 255, 0.2);
       }
@@ -152,6 +152,19 @@
 
     .signup-link {
       color: #b0b0b0;
+    }
+  }
+
+  // Material form field labels
+  mat-form-field {
+
+    .mat-mdc-form-field-label,
+    .mdc-floating-label {
+      color: rgba(255, 255, 255, 0.7) !important;
+    }
+
+    .mat-mdc-form-field-label.mdc-floating-label--float-above {
+      color: rgba(255, 255, 255, 0.9) !important;
     }
   }
 }
