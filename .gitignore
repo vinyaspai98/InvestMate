@@ -25,6 +25,7 @@
 
 # Visual Studio Code
 .vscode/*
+frontend/.vscode/*
 .guthub/*
 !.vscode/settings.json
 !.vscode/tasks.json
