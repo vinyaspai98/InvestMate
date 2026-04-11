@@ -9,8 +9,10 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
+import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AuthService } from '../../services/auth.service';
 import { ThemeService } from '../../services/theme.service';
+import { GmailService } from '../../services/gmail.service';
 import { User } from '../../models/user.model';
 
 @Component({
@@ -27,7 +29,8 @@ import { User } from '../../models/user.model';
     MatIconModule,
     MatSelectModule,
     MatSlideToggleModule,
-    MatSnackBarModule
+    MatSnackBarModule,
+    MatProgressSpinnerModule
   ],
   template: `
     <div class="profile-container">
@@ -112,38 +115,37 @@ import { User } from '../../models/user.model';
           </mat-card-content>
         </mat-card>
 
+        <!-- Gmail Sync -->
+        <mat-card class="profile-card">
+          <mat-card-header>
+            <mat-card-title>Gmail Sync</mat-card-title>
+          </mat-card-header>
+          <mat-card-content>
+            <p class="sync-description">Automatically sync your investment data from CDSL India emails</p>
+            <div class="sync-info">
+              <mat-icon>info</mat-icon>
+              <span>Syncs emails from services@cdslindia.co.in with subject "Transactions In Your Demat Account"</span>
+            </div>
+            <div class="form-actions">
+              <button mat-raised-button color="primary" (click)="onSyncGmail()" [disabled]="isSyncing">
+                <mat-spinner *ngIf="isSyncing" diameter="20"></mat-spinner>
+                <mat-icon *ngIf="!isSyncing">sync</mat-icon>
+                {{ isSyncing ? 'Syncing...' : 'Sync Gmail' }}
+              </button>
+            </div>
+          </mat-card-content>
+        </mat-card>
+
         <!-- Security -->
         <mat-card class="profile-card">
           <mat-card-header>
             <mat-card-title>Security</mat-card-title>
           </mat-card-header>
           <mat-card-content>
-            <form [formGroup]="passwordForm" (ngSubmit)="onChangePassword()">
-              <mat-form-field appearance="outline" class="full-width">
-                <mat-label>Current Password</mat-label>
-                <input matInput type="password" formControlName="currentPassword">
-                <mat-icon matSuffix>lock</mat-icon>
-              </mat-form-field>
-
-              <mat-form-field appearance="outline" class="full-width">
-                <mat-label>New Password</mat-label>
-                <input matInput type="password" formControlName="newPassword">
-                <mat-icon matSuffix>lock_open</mat-icon>
-              </mat-form-field>
-
-              <mat-form-field appearance="outline" class="full-width">
-                <mat-label>Confirm New Password</mat-label>
-                <input matInput type="password" formControlName="confirmPassword">
-                <mat-icon matSuffix>lock_open</mat-icon>
-              </mat-form-field>
-
-              <div class="form-actions">
-                <button mat-raised-button color="accent" type="submit" [disabled]="!passwordForm.valid">
-                  <mat-icon>security</mat-icon>
-                  Change Password
-                </button>
-              </div>
-            </form>
+            <p class="security-note">
+              <mat-icon>lock</mat-icon>
+              Password management is handled securely by Google. Visit your Google Account settings to update your password.
+            </p>
           </mat-card-content>
         </mat-card>
       </div>
@@ -220,6 +222,46 @@ import { User } from '../../models/user.model';
       }
     }
 
+    .sync-description {
+      margin: 0 0 1rem 0;
+      color: #666;
+    }
+
+    .sync-info {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      margin-bottom: 1.5rem;
+      padding: 12px;
+      background: rgba(103, 126, 234, 0.1);
+      border-radius: 8px;
+      color: #5a67d8;
+      font-size: 0.875rem;
+
+      mat-icon {
+        font-size: 20px;
+        width: 20px;
+        height: 20px;
+      }
+    }
+
+    .security-note {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 0;
+      padding: 16px;
+      background: rgba(255, 193, 7, 0.1);
+      border-radius: 8px;
+      color: #f57c00;
+
+      mat-icon {
+        font-size: 24px;
+        width: 24px;
+        height: 24px;
+      }
+    }
+
     .form-actions {
       margin-top: 1.5rem;
       display: flex;
@@ -261,6 +303,20 @@ import { User } from '../../models/user.model';
             color: #ffffff;
           }
         }
+
+        .sync-description {
+          color: #b0b0b0;
+        }
+
+        .sync-info {
+          background: rgba(103, 126, 234, 0.2);
+          color: #a5b4fc;
+        }
+
+        .security-note {
+          background: rgba(255, 193, 7, 0.2);
+          color: #ffb74d;
+        }
       }
 
       // Material form field labels
@@ -282,11 +338,13 @@ export class ProfileComponent implements OnInit {
   preferencesForm: FormGroup;
   passwordForm: FormGroup;
   currentUser: User | null = null;
+  isSyncing = false;
 
   constructor(
     private fb: FormBuilder,
     private authService: AuthService,
     public themeService: ThemeService,
+    private gmailService: GmailService,
     private snackBar: MatSnackBar
   ) {
     this.profileForm = this.fb.group({
@@ -371,18 +429,22 @@ export class ProfileComponent implements OnInit {
   }
 
   onChangePassword(): void {
-    if (this.passwordForm.valid) {
-      const { currentPassword, newPassword } = this.passwordForm.value;
+    // Password change removed - using Google OAuth
+    this.snackBar.open('Password management is handled by Google.', 'Close', { duration: 3000 });
+  }
 
-      this.authService.changePassword(currentPassword, newPassword).subscribe({
-        next: () => {
-          this.snackBar.open('Password changed successfully!', 'Close', { duration: 3000 });
-          this.passwordForm.reset();
-        },
-        error: () => {
-          this.snackBar.open('Failed to change password.', 'Close', { duration: 3000 });
-        }
-      });
-    }
+  onSyncGmail(): void {
+    this.isSyncing = true;
+
+    this.gmailService.syncGmail().subscribe({
+      next: (response) => {
+        this.isSyncing = false;
+        this.snackBar.open('You are all caught up!', 'Close', { duration: 3000 });
+      },
+      error: (error) => {
+        this.isSyncing = false;
+        this.snackBar.open('Failed to sync Gmail. Please try again.', 'Close', { duration: 5000 });
+      }
+    });
   }
 }

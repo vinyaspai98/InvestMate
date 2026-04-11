@@ -48,6 +48,7 @@ func main() {
 	loanHandler := handlers.NewLoanHandler(firestoreClient)
 	transactionHandler := handlers.NewTransactionHandler(firestoreClient)
 	chartHandler := handlers.NewChartHandler(firestoreClient)
+	gmailHandler := handlers.NewGmailHandler(firestoreClient)
 
 	// Setup Gin router
 	if cfg.Environment == "production" {
@@ -142,6 +143,12 @@ func main() {
 			{
 				charts.GET("/:category/:period", chartHandler.GetCategoryChart)
 				charts.GET("/portfolio/:period", chartHandler.GetPortfolioChart)
+			}
+
+			// Gmail sync routes
+			gmail := protected.Group("/gmail")
+			{
+				gmail.POST("/sync", gmailHandler.SyncGmail)
 			}
 		}
 	}

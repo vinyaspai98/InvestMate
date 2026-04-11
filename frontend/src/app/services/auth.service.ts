@@ -1,13 +1,11 @@
 import { Injectable, inject } from '@angular/core';
 import { Observable, BehaviorSubject, of, from, throwError } from 'rxjs';
 import { map, catchError, tap, switchMap } from 'rxjs/operators';
-import { 
-  Auth, 
-  signInWithEmailAndPassword, 
-  createUserWithEmailAndPassword,
+import {
+  Auth,
+  signInWithPopup,
+  GoogleAuthProvider,
   signOut,
-  sendPasswordResetEmail,
-  updatePassword,
   updateProfile,
   User as FirebaseUser,
   user
@@ -48,72 +46,51 @@ export class AuthService {
     return null;
   }
 
-  login(authRequest: AuthRequest): Observable<User> {
-    return from(
-      signInWithEmailAndPassword(this.auth, authRequest.email, authRequest.password)
-    ).pipe(
+
+  loginWithGoogle(): Observable<User> {
+    const provider = new GoogleAuthProvider();
+    // Add Gmail readonly scope for accessing emails
+    provider.addScope('https://www.googleapis.com/auth/gmail.readonly');
+    provider.setCustomParameters({
+      prompt: 'select_account'
+    });
+
+    return from(signInWithPopup(this.auth, provider)).pipe(
       switchMap(credential => this.mapFirebaseUserToUser(credential.user)),
       tap(user => this.currentUserSubject.next(user)),
       catchError(error => {
-        console.error('Login error:', error);
-        let errorMessage = 'Login failed. Please try again.';
-        
+        console.error('Google Sign-In error:', error);
+        let errorMessage = 'Sign in failed. Please try again.';
+
         switch (error.code) {
-          case 'auth/user-not-found':
-            errorMessage = 'No account found with this email address.';
+          case 'auth/popup-closed-by-user':
+            errorMessage = 'Sign in cancelled.';
             break;
-          case 'auth/wrong-password':
-            errorMessage = 'Incorrect password. Please try again.';
+          case 'auth/popup-blocked':
+            errorMessage = 'Pop-up blocked. Please allow pop-ups for this site.';
             break;
-          case 'auth/invalid-email':
-            errorMessage = 'Invalid email address format.';
+          case 'auth/cancelled-popup-request':
+            errorMessage = 'Sign in cancelled.';
             break;
-          case 'auth/user-disabled':
-            errorMessage = 'This account has been disabled.';
-            break;
-          case 'auth/too-many-requests':
-            errorMessage = 'Too many failed login attempts. Please try again later.';
+          case 'auth/account-exists-with-different-credential':
+            errorMessage = 'An account already exists with the same email address.';
             break;
         }
-        
+
         return throwError(() => new Error(errorMessage));
       })
     );
   }
 
+  // Legacy methods kept for backward compatibility but not used
+  login(authRequest: AuthRequest): Observable<User> {
+    // Redirect to Google Sign-In
+    return this.loginWithGoogle();
+  }
+
   signup(signupRequest: SignupRequest): Observable<User> {
-    return from(
-      createUserWithEmailAndPassword(this.auth, signupRequest.email, signupRequest.password)
-    ).pipe(
-      switchMap(credential => {
-        // Update display name in Firebase
-        return from(updateProfile(credential.user, { 
-          displayName: signupRequest.name 
-        })).pipe(
-          map(() => credential.user)
-        );
-      }),
-      switchMap(firebaseUser => this.mapFirebaseUserToUser(firebaseUser)),
-      tap(user => this.currentUserSubject.next(user)),
-      catchError(error => {
-        console.error('Signup error:', error);
-        let errorMessage = 'Signup failed. Please try again.';
-        
-        switch (error.code) {
-          case 'auth/email-already-in-use':
-            errorMessage = 'An account with this email already exists.';
-            break;
-          case 'auth/invalid-email':
-            errorMessage = 'Invalid email address format.';
-            break;
-          case 'auth/weak-password':
-            errorMessage = 'Password is too weak. Please use a stronger password.';
-            break;
-        }
-        
-        return throwError(() => new Error(errorMessage));
-      })
-    );
+    // Redirect to Google Sign-In
+    return this.loginWithGoogle();
   }
 
   logout(): Observable<void> {
@@ -136,7 +113,7 @@ export class AuthService {
 
   updateUser(user: User): Observable<User> {
     const firebaseUser = this.auth.currentUser;
-    
+
     if (!firebaseUser) {
       return throwError(() => new Error('No authenticated user'));
     }
@@ -160,60 +137,7 @@ export class AuthService {
     );
   }
 
-  resetPassword(email: string): Observable<boolean> {
-    return from(sendPasswordResetEmail(this.auth, email)).pipe(
-      map(() => true),
-      catchError(error => {
-        console.error('Password reset error:', error);
-        let errorMessage = 'Failed to send password reset email.';
-        
-        switch (error.code) {
-          case 'auth/user-not-found':
-            errorMessage = 'No account found with this email address.';
-            break;
-          case 'auth/invalid-email':
-            errorMessage = 'Invalid email address format.';
-            break;
-        }
-        
-        return throwError(() => new Error(errorMessage));
-      })
-    );
-  }
-
-  changePassword(currentPassword: string, newPassword: string): Observable<boolean> {
-    const firebaseUser = this.auth.currentUser;
-    
-    if (!firebaseUser || !firebaseUser.email) {
-      return throwError(() => new Error('No authenticated user'));
-    }
-
-    // Re-authenticate user before changing password
-    return from(
-      signInWithEmailAndPassword(this.auth, firebaseUser.email, currentPassword)
-    ).pipe(
-      switchMap(() => from(updatePassword(firebaseUser, newPassword))),
-      map(() => true),
-      catchError(error => {
-        console.error('Change password error:', error);
-        let errorMessage = 'Failed to change password.';
-        
-        switch (error.code) {
-          case 'auth/wrong-password':
-            errorMessage = 'Current password is incorrect.';
-            break;
-          case 'auth/weak-password':
-            errorMessage = 'New password is too weak.';
-            break;
-          case 'auth/requires-recent-login':
-            errorMessage = 'Please log in again before changing your password.';
-            break;
-        }
-        
-        return throwError(() => new Error(errorMessage));
-      })
-    );
-  }
+  // Password methods removed - using Google OAuth
 
   // Helper method to map Firebase User to our User model
   private async mapFirebaseUserToUser(firebaseUser: FirebaseUser): Promise<User> {

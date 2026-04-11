@@ -4,14 +4,18 @@ import "time"
 
 // User represents the user profile document
 type User struct {
-	ID          string          `json:"id" firestore:"-"`
-	Email       string          `json:"email" firestore:"email"`
-	Name        string          `json:"name" firestore:"name"`
-	PhoneNumber string          `json:"phoneNumber" firestore:"phoneNumber"`
-	Preferences UserPreferences `json:"preferences" firestore:"preferences"`
-	CreatedAt   time.Time       `json:"createdAt" firestore:"createdAt"`
-	UpdatedAt   time.Time       `json:"updatedAt" firestore:"updatedAt"`
-	IsActive    bool            `json:"isActive" firestore:"isActive"`
+	ID                string          `json:"id" firestore:"-"`
+	Email             string          `json:"email" firestore:"email"`
+	Name              string          `json:"name" firestore:"name"`
+	PhoneNumber       string          `json:"phoneNumber" firestore:"phoneNumber"`
+	Preferences       UserPreferences `json:"preferences" firestore:"preferences"`
+	CreatedAt         time.Time       `json:"createdAt" firestore:"createdAt"`
+	UpdatedAt         time.Time       `json:"updatedAt" firestore:"updatedAt"`
+	IsActive          bool            `json:"isActive" firestore:"isActive"`
+	GmailAccessToken  string          `json:"-" firestore:"gmailAccessToken,omitempty"`                    // OAuth access token (not exposed in JSON)
+	GmailRefreshToken string          `json:"-" firestore:"gmailRefreshToken,omitempty"`                   // OAuth refresh token (not exposed in JSON)
+	GmailTokenExpiry  *time.Time      `json:"-" firestore:"gmailTokenExpiry,omitempty"`                    // Token expiration time
+	LastGmailSync     *time.Time      `json:"lastGmailSync,omitempty" firestore:"lastGmailSync,omitempty"` // Last successful sync
 }
 
 // UserPreferences represents user settings and preferences
