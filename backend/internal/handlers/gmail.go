@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -65,8 +66,8 @@ func (h *GmailHandler) SyncGmail(c *gin.Context) {
 		return
 	}
 
-	// Fetch CDSL emails
-	emails, err := h.fetchCDSLEmails(gmailService, userID)
+	// Fetch CDSL emails after last sync
+	emails, err := h.fetchCDSLEmails(gmailService, userID, user.LastGmailSync)
 	if err != nil {
 		log.Printf("Failed to fetch emails: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch emails"})
@@ -131,10 +132,17 @@ func (h *GmailHandler) connectToGmail(ctx context.Context, accessToken string) (
 	return gmailService, nil
 }
 
-// fetchCDSLEmails fetches emails from CDSL India
-func (h *GmailHandler) fetchCDSLEmails(gmailService *gmail.Service, userID string) ([]*gmail.Message, error) {
+// fetchCDSLEmails fetches emails from CDSL India after a specific timestamp
+func (h *GmailHandler) fetchCDSLEmails(gmailService *gmail.Service, userID string, lastSync *time.Time) ([]*gmail.Message, error) {
 	// Build query to filter emails
 	query := fmt.Sprintf("subject:\"%s\"", constants.CDSLEmailSubject)
+
+	// Only sync emails after the last successful sync
+	if lastSync != nil && !lastSync.IsZero() {
+		// Gmail after: operator supports Unix timestamps in seconds
+		query = fmt.Sprintf("%s after:%d", query, lastSync.Unix())
+		log.Printf("Syncing emails after %v (Unix: %d)", lastSync, lastSync.Unix())
+	}
 
 	// List messages
 	listCall := gmailService.Users.Messages.List("me").Q(query).MaxResults(int64(constants.MaxEmailsToFetch))
@@ -149,6 +157,9 @@ func (h *GmailHandler) fetchCDSLEmails(gmailService *gmail.Service, userID strin
 
 	// Fetch full message details
 	var emails []*gmail.Message
+	// Reverse messages to process from oldest to newest
+	slices.Reverse(response.Messages)
+
 	for _, msg := range response.Messages {
 		fullMsg, err := gmailService.Users.Messages.Get("me", msg.Id).Format("full").Do()
 		if err != nil {
@@ -495,46 +506,91 @@ func (h *GmailHandler) saveInvestmentData(ctx context.Context, userID string, in
 
 	batch := h.firestoreClient.Batch()
 
+	// Track investment refs to link with transactions
+	invRefs := make([]*firestore.DocumentRef, len(investments))
+
 	// Save investments
-	for _, investment := range investments {
-		// Check if investment already exists
-		query := h.firestoreClient.Collection("users").Doc(userID).Collection("investments").
-			Where("category", "==", investment.Category).
-			Where("name", "==", investment.Name).
-			Limit(1)
+	for i, investment := range investments {
+		tx := transactions[i]
+
+		// Find existing investment by Category and ISIN (Ticker)
+		// If ISIN is missing, fallback to Name
+		var query firestore.Query
+		if investment.InvestmentData.Ticker != "" {
+			query = h.firestoreClient.Collection("users").Doc(userID).Collection("investments").
+				Where("category", "==", investment.Category).
+				Where("investmentData.ticker", "==", investment.InvestmentData.Ticker).
+				Limit(1)
+		} else {
+			query = h.firestoreClient.Collection("users").Doc(userID).Collection("investments").
+				Where("category", "==", investment.Category).
+				Where("name", "==", investment.Name).
+				Limit(1)
+		}
 
 		docs, err := query.Documents(ctx).GetAll()
 		if err != nil {
-			return fmt.Errorf("failed to query existing investments: %v", err)
+			log.Printf("Failed to query existing investments: %v", err)
+			continue
 		}
 
 		if len(docs) > 0 {
 			// Update existing investment
 			var existing models.Investment
 			docs[0].DataTo(&existing)
+			docRef := docs[0].Ref
+			invRefs[i] = docRef
 
-			// Merge quantities/units
-			if investment.Category == models.CategoryStocks {
-				existing.InvestmentData.Quantity += investment.InvestmentData.Quantity
-				existing.InvestedAmount += investment.InvestedAmount
-				existing.CurrentValue += investment.CurrentValue
-			} else if investment.Category == models.CategoryMutualFunds {
-				existing.InvestmentData.Units += investment.InvestmentData.Units
-				existing.InvestedAmount += investment.InvestedAmount
-				existing.CurrentValue += investment.CurrentValue
+			if tx.Type == models.TransactionTypeBuy {
+				// Add quantities/units
+				if investment.Category == models.CategoryStocks {
+					existing.InvestmentData.Quantity += investment.InvestmentData.Quantity
+				} else if investment.Category == models.CategoryMutualFunds {
+					existing.InvestmentData.Units += investment.InvestmentData.Units
+				}
+				existing.UpdatedAt = time.Now()
+				batch.Set(docRef, existing)
+			} else if tx.Type == models.TransactionTypeSell {
+				// Subtract quantities/units
+				if investment.Category == models.CategoryStocks {
+					existing.InvestmentData.Quantity -= investment.InvestmentData.Quantity
+				} else if investment.Category == models.CategoryMutualFunds {
+					existing.InvestmentData.Units -= investment.InvestmentData.Units
+				}
+
+				// Check if quantity became zero or negative
+				qty := 0.0
+				if investment.Category == models.CategoryStocks {
+					qty = existing.InvestmentData.Quantity
+				} else {
+					qty = existing.InvestmentData.Units
+				}
+
+				if qty <= 0 {
+					log.Printf("Deleting investment %s as quantity reached %0.3f", existing.Name, qty)
+					batch.Delete(docRef)
+				} else {
+					existing.UpdatedAt = time.Now()
+					batch.Set(docRef, existing)
+				}
 			}
-
-			existing.UpdatedAt = time.Now()
-			batch.Set(docs[0].Ref, existing)
 		} else {
-			// Create new investment
-			ref := h.firestoreClient.Collection("users").Doc(userID).Collection("investments").NewDoc()
-			batch.Set(ref, investment)
+			// Create new investment only for Buy transactions
+			if tx.Type == models.TransactionTypeBuy {
+				ref := h.firestoreClient.Collection("users").Doc(userID).Collection("investments").NewDoc()
+				batch.Set(ref, investment)
+				invRefs[i] = ref
+			}
 		}
 	}
 
 	// Save transactions
-	for _, transaction := range transactions {
+	for i, transaction := range transactions {
+		// Link transaction to investment if possible
+		if invRefs[i] != nil {
+			transaction.RelatedID = invRefs[i].ID
+		}
+
 		ref := h.firestoreClient.Collection("users").Doc(userID).Collection("transactions").NewDoc()
 		batch.Set(ref, transaction)
 	}
