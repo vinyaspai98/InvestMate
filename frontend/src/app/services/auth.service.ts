@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { Observable, BehaviorSubject, of, from, throwError } from 'rxjs';
 import { map, catchError, tap, switchMap } from 'rxjs/operators';
+import { HttpClient } from '@angular/common/http';
 import {
   Auth,
   signInWithPopup,
@@ -11,21 +12,26 @@ import {
   user
 } from '@angular/fire/auth';
 import { User, AuthRequest, SignupRequest } from '../models/user.model';
+import { environment } from '../../environments/environment';
 
 @Injectable({
   providedIn: 'root'
 })
 export class AuthService {
   private auth = inject(Auth);
+  private http = inject(HttpClient);
   private currentUserSubject = new BehaviorSubject<User | null>(null);
   public currentUser$ = this.currentUserSubject.asObservable();
+  private apiUrl = environment.apiBaseUrl || 'http://localhost:8080/api/v1';
 
   constructor() {
     // Subscribe to Firebase auth state changes
     user(this.auth).subscribe(firebaseUser => {
       if (firebaseUser) {
-        this.mapFirebaseUserToUser(firebaseUser).then(user => {
-          this.currentUserSubject.next(user);
+        // Sync with backend on initial load/state change
+        this.syncWithBackend(firebaseUser).subscribe({
+          next: (user) => this.currentUserSubject.next(user),
+          error: (err) => console.error('Failed to sync user with backend:', err)
         });
       } else {
         this.currentUserSubject.next(null);
@@ -46,6 +52,23 @@ export class AuthService {
     return null;
   }
 
+  private syncWithBackend(firebaseUser: FirebaseUser, gmailAccessToken?: string): Observable<User> {
+    return from(firebaseUser.getIdToken()).pipe(
+      switchMap(token => {
+        return this.http.post<{ user: User }>(`${this.apiUrl}/auth/verify-token`, {
+          token,
+          gmailAccessToken
+        }).pipe(
+          map(response => response.user),
+          catchError(error => {
+            console.error('Backend sync error:', error);
+            // Fallback to local mapping if backend fails, but this might lead to 500s later
+            return from(this.mapFirebaseUserToUser(firebaseUser));
+          })
+        );
+      })
+    );
+  }
 
   loginWithGoogle(): Observable<User> {
     const provider = new GoogleAuthProvider();
@@ -56,7 +79,11 @@ export class AuthService {
     });
 
     return from(signInWithPopup(this.auth, provider)).pipe(
-      switchMap(credential => this.mapFirebaseUserToUser(credential.user)),
+      switchMap(result => {
+        const credential = GoogleAuthProvider.credentialFromResult(result);
+        const gmailAccessToken = credential?.accessToken || undefined;
+        return this.syncWithBackend(result.user, gmailAccessToken);
+      }),
       tap(user => this.currentUserSubject.next(user)),
       catchError(error => {
         console.error('Google Sign-In error:', error);
@@ -145,7 +172,6 @@ export class AuthService {
       id: firebaseUser.uid,
       email: firebaseUser.email || '',
       name: firebaseUser.displayName || 'User',
-      contact: firebaseUser.phoneNumber || '',
       preferences: {
         currency: 'INR',
         theme: 'light',

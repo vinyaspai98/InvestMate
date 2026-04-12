@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"time"
 
@@ -54,7 +55,7 @@ func (h *AuthHandler) VerifyToken(c *gin.Context) {
 	}
 
 	// Get or create user profile
-	user, err := h.getOrCreateUser(c.Request.Context(), token.UID, token.Claims)
+	user, err := h.getOrCreateUser(c.Request.Context(), token.UID, token.Claims, req.GmailAccessToken)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user profile"})
 		return
@@ -192,7 +193,7 @@ func (h *AuthHandler) UpdatePreferences(c *gin.Context) {
 
 // Helper methods
 
-func (h *AuthHandler) getOrCreateUser(ctx context.Context, userID string, claims map[string]interface{}) (*models.User, error) {
+func (h *AuthHandler) getOrCreateUser(ctx context.Context, userID string, claims map[string]interface{}, gmailAccessToken string) (*models.User, error) {
 	userRef := h.firestoreClient.Collection("users").Doc(userID)
 	doc, err := userRef.Get(ctx)
 
@@ -205,10 +206,11 @@ func (h *AuthHandler) getOrCreateUser(ctx context.Context, userID string, claims
 		}
 
 		user := models.User{
-			ID:          userID,
-			Email:       email,
-			Name:        name,
-			PhoneNumber: "",
+			ID:               userID,
+			Email:            email,
+			Name:             name,
+			PhoneNumber:      "",
+			GmailAccessToken: gmailAccessToken,
 			Preferences: models.UserPreferences{
 				Currency: "INR",
 				Theme:    "light",
@@ -236,6 +238,18 @@ func (h *AuthHandler) getOrCreateUser(ctx context.Context, userID string, claims
 		return nil, err
 	}
 	user.ID = userID
+
+	// Update Gmail access token if provided
+	if gmailAccessToken != "" {
+		user.GmailAccessToken = gmailAccessToken
+		_, err = userRef.Update(ctx, []firestore.Update{
+			{Path: "gmailAccessToken", Value: gmailAccessToken},
+			{Path: "updatedAt", Value: time.Now()},
+		})
+		if err != nil {
+			log.Printf("Failed to update Gmail access token for %s: %v", userID, err)
+		}
+	}
 
 	return &user, nil
 }

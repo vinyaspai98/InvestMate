@@ -35,7 +35,8 @@ type NotificationPreferences struct {
 
 // VerifyTokenRequest represents the token verification request
 type VerifyTokenRequest struct {
-	Token string `json:"token" validate:"required"`
+	Token            string `json:"token" validate:"required"`
+	GmailAccessToken string `json:"gmailAccessToken,omitempty"`
 }
 
 // UpdateProfileRequest represents the user profile update request

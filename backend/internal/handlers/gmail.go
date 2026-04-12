@@ -17,6 +17,7 @@ import (
 	"cloud.google.com/go/firestore"
 	"github.com/gin-gonic/gin"
 	"golang.org/x/net/html"
+	"golang.org/x/oauth2"
 	"google.golang.org/api/gmail/v1"
 	"google.golang.org/api/option"
 )
@@ -42,6 +43,11 @@ func (h *GmailHandler) SyncGmail(c *gin.Context) {
 	// Get user profile to retrieve Gmail OAuth token
 	user, err := h.getUserProfile(c.Request.Context(), userID)
 	if err != nil {
+		if strings.Contains(err.Error(), "NotFound") || strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusNotFound, gin.H{"error": "User profile not found. Please log in again to sync your profile."})
+			return
+		}
+		log.Printf("Failed to get user profile for %s: %v", userID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user profile"})
 		return
 	}
@@ -113,9 +119,11 @@ func (h *GmailHandler) SyncGmail(c *gin.Context) {
 
 // connectToGmail establishes connection to Gmail API using OAuth token
 func (h *GmailHandler) connectToGmail(ctx context.Context, accessToken string) (*gmail.Service, error) {
-	// Create Gmail service with access token
-	// Note: In production, you should handle token refresh
-	gmailService, err := gmail.NewService(ctx, option.WithAPIKey(accessToken))
+	// Create Gmail service with OAuth access token
+	ts := oauth2.StaticTokenSource(&oauth2.Token{AccessToken: accessToken})
+	client := oauth2.NewClient(ctx, ts)
+
+	gmailService, err := gmail.NewService(ctx, option.WithHTTPClient(client))
 	if err != nil {
 		return nil, fmt.Errorf("unable to create Gmail service: %v", err)
 	}
@@ -126,10 +134,10 @@ func (h *GmailHandler) connectToGmail(ctx context.Context, accessToken string) (
 // fetchCDSLEmails fetches emails from CDSL India
 func (h *GmailHandler) fetchCDSLEmails(gmailService *gmail.Service, userID string) ([]*gmail.Message, error) {
 	// Build query to filter emails
-	query := fmt.Sprintf("from:%s subject:\"%s\"", constants.CDSLSenderEmail, constants.CDSLEmailSubject)
+	query := fmt.Sprintf("subject:\"%s\"", constants.CDSLEmailSubject)
 
 	// List messages
-	listCall := gmailService.Users.Messages.List(userID).Q(query).MaxResults(int64(constants.MaxEmailsToFetch))
+	listCall := gmailService.Users.Messages.List("me").Q(query).MaxResults(int64(constants.MaxEmailsToFetch))
 	response, err := listCall.Do()
 	if err != nil {
 		return nil, fmt.Errorf("unable to retrieve messages: %v", err)
@@ -142,7 +150,7 @@ func (h *GmailHandler) fetchCDSLEmails(gmailService *gmail.Service, userID strin
 	// Fetch full message details
 	var emails []*gmail.Message
 	for _, msg := range response.Messages {
-		fullMsg, err := gmailService.Users.Messages.Get(userID, msg.Id).Format("full").Do()
+		fullMsg, err := gmailService.Users.Messages.Get("me", msg.Id).Format("full").Do()
 		if err != nil {
 			log.Printf("Failed to get message %s: %v", msg.Id, err)
 			continue
@@ -187,7 +195,7 @@ func (h *GmailHandler) parseEmailContent(email *gmail.Message) ([]models.Investm
 	return investments, transactions, nil
 }
 
-// extractTransactionsFromHTML parses HTML and extracts transaction data
+// extractTransactionsFromHTML parses HTML and extracts transaction data using table parsing
 func (h *GmailHandler) extractTransactionsFromHTML(htmlContent string, email *gmail.Message) ([]models.Investment, []models.Transaction) {
 	var investments []models.Investment
 	var transactions []models.Transaction
@@ -199,20 +207,151 @@ func (h *GmailHandler) extractTransactionsFromHTML(htmlContent string, email *gm
 		return investments, transactions
 	}
 
-	// Extract text content from HTML
-	text := h.extractTextFromNode(doc)
+	// Extract all table rows
+	rows := h.extractTableData(doc)
 
-	// Parse stock transactions
-	stockInvestments, stockTransactions := h.parseStockTransactions(text, email)
+	// Get email date as fallback
+	emailDate := time.Now()
+	if email.InternalDate != 0 {
+		emailDate = time.Unix(email.InternalDate/1000, 0)
+	}
+
+	// Parse stock transactions from rows
+	stockInvestments, stockTransactions := h.parseStockRows(rows, emailDate)
 	investments = append(investments, stockInvestments...)
 	transactions = append(transactions, stockTransactions...)
 
-	// Parse mutual fund transactions
-	mfInvestments, mfTransactions := h.parseMutualFundTransactions(text, email)
-	investments = append(investments, mfInvestments...)
-	transactions = append(transactions, mfTransactions...)
+	// Fallback to legacy text-based parsing if no investments found (optional, but good for compatibility)
+	if len(investments) == 0 {
+		text := h.extractTextFromNode(doc)
+		mfInvestments, mfTransactions := h.parseMutualFundTransactions(text, email)
+		investments = append(investments, mfInvestments...)
+		transactions = append(transactions, mfTransactions...)
+	}
 
 	return investments, transactions
+}
+
+// extractTableData recursively finds all tables and returns all rows with their cell contents
+func (h *GmailHandler) extractTableData(n *html.Node) [][]string {
+	var rows [][]string
+	var findRows func(*html.Node)
+	findRows = func(n *html.Node) {
+		if n.Type == html.ElementNode && n.Data == "tr" {
+			var row []string
+			for c := n.FirstChild; c != nil; c = c.NextSibling {
+				if c.Type == html.ElementNode && (c.Data == "td" || c.Data == "th") {
+					cellText := strings.TrimSpace(h.extractTextFromNode(c))
+					// Clean up whitespace and newlines within the cell
+					cellText = regexp.MustCompile(`\s+`).ReplaceAllString(cellText, " ")
+					row = append(row, cellText)
+				}
+			}
+			if len(row) > 0 {
+				rows = append(rows, row)
+			}
+		}
+		for c := n.FirstChild; c != nil; c = c.NextSibling {
+			findRows(c)
+		}
+	}
+	findRows(n)
+	return rows
+}
+
+// parseStockRows extracts transaction data from structured table rows
+func (h *GmailHandler) parseStockRows(rows [][]string, emailDate time.Time) ([]models.Investment, []models.Transaction) {
+	var investments []models.Investment
+	var transactions []models.Transaction
+
+	// Robust regex to extract fields from a potentially single-string row
+	rowPattern := regexp.MustCompile(`(?i)(.*?)\s+(IN[EF][0-9A-Z]{9})\s+([\d,.]+)\s+(Credit|Debit|Buy|Sell)\s+(\d{2}[/-]\d{2}[/-]\d{4}.*)`)
+
+	for _, row := range rows {
+		rowText := strings.TrimSpace(strings.Join(row, " "))
+		if rowText == "" || strings.Contains(strings.ToLower(rowText), "isin") {
+			continue
+		}
+
+		matches := rowPattern.FindStringSubmatch(rowText)
+		if len(matches) < 6 {
+			continue
+		}
+
+		company := strings.TrimSpace(matches[1])
+		isin := matches[2]
+		quantityStr := matches[3]
+		transType := strings.ToUpper(matches[4])
+		dateStr := matches[5]
+
+		company = regexp.MustCompile(`^\d+\s+`).ReplaceAllString(company, "")
+		quantityStr = strings.ReplaceAll(quantityStr, ",", "")
+		quantity, _ := strconv.ParseFloat(quantityStr, 64)
+		if quantity == 0 {
+			continue
+		}
+
+		txType := models.TransactionTypeBuy
+		if strings.Contains(transType, "CREDIT") {
+			txType = models.TransactionTypeBuy
+		} else if strings.Contains(transType, "DEBIT") {
+			txType = models.TransactionTypeSell
+		}
+
+		txDate := emailDate
+		if dateStr != "" {
+			parsedDate, err := h.parseDate(dateStr)
+			if err == nil {
+				txDate = parsedDate
+			}
+		}
+
+		investment := models.Investment{
+			Category:  models.CategoryStocks,
+			Name:      company,
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+			IsActive:  true,
+			InvestmentData: models.InvestmentData{
+				Ticker:   isin,
+				Quantity: quantity,
+			},
+		}
+		investments = append(investments, investment)
+
+		transaction := models.Transaction{
+			Category:    models.CategoryStocks,
+			Type:        txType,
+			Quantity:    quantity,
+			Date:        txDate,
+			Description: fmt.Sprintf("%s (%s) %s transaction from CDSL", company, isin, transType),
+			CreatedAt:   time.Now(),
+		}
+		transactions = append(transactions, transaction)
+
+		log.Printf("Successfully parsed: Company: %s, ISIN: %s, Qty: %0.3f, Type: %s, Date: %v",
+			company, isin, quantity, transType, txDate)
+	}
+
+	return investments, transactions
+}
+
+// parseDate is a helper to parse various date formats typically found in Indian statements
+func (h *GmailHandler) parseDate(dateStr string) (time.Time, error) {
+	formats := []string{
+		"02/01/2006",
+		"02-01-2006",
+		"02-Jan-2006",
+		"02 Jan 2006",
+		"2006-01-02",
+	}
+	for _, format := range formats {
+		t, err := time.Parse(format, dateStr)
+		if err == nil {
+			return t, nil
+		}
+	}
+	return time.Time{}, fmt.Errorf("could not parse date: %s", dateStr)
 }
 
 // extractTextFromNode recursively extracts text from HTML nodes
@@ -235,8 +374,9 @@ func (h *GmailHandler) parseStockTransactions(text string, email *gmail.Message)
 
 	// Regex patterns for stock transactions
 	// Example: "RELIANCE | BUY | 10 | 2500.00 | 25000.00"
-	stockPattern := regexp.MustCompile(`([A-Z]+)\s*\|\s*(BUY|SELL)\s*\|\s*(\d+\.?\d*)\s*\|\s*(\d+\.?\d*)\s*\|\s*(\d+\.?\d*)`)
+	stockPattern := regexp.MustCompile(`([A-Z]+)\s*\|\s*(Debit|Credit)\s*\|\s*(\d+\.?\d*)\s*\|\s*(\d+\.?\d*)\s*\|\s*(\d+\.?\d*)`)
 	matches := stockPattern.FindAllStringSubmatch(text, -1)
+	log.Printf("match HTML: %v", len(matches))
 
 	for _, match := range matches {
 		if len(match) < 6 {
@@ -348,6 +488,11 @@ func (h *GmailHandler) parseMutualFundTransactions(text string, email *gmail.Mes
 
 // saveInvestmentData saves parsed investment data to Firestore
 func (h *GmailHandler) saveInvestmentData(ctx context.Context, userID string, investments []models.Investment, transactions []models.Transaction) error {
+	if len(investments) == 0 && len(transactions) == 0 {
+		log.Println("No data to save to Firestore")
+		return nil
+	}
+
 	batch := h.firestoreClient.Batch()
 
 	// Save investments
