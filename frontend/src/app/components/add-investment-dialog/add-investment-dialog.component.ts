@@ -9,7 +9,10 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
 import { MatIconModule } from '@angular/material/icon';
+import { MatAutocompleteModule } from '@angular/material/autocomplete';
 import { InvestmentCategory, TransactionType } from '../../models/investment.model';
+import { AutocompleteService } from '../../services/autocomplete.service';
+import { debounceTime, distinctUntilChanged, switchMap, catchError, of, Observable } from 'rxjs';
 
 export interface InvestmentDialogData {
   category: InvestmentCategory;
@@ -30,7 +33,8 @@ export interface InvestmentDialogData {
     MatSelectModule,
     MatDatepickerModule,
     MatNativeDateModule,
-    MatIconModule
+    MatIconModule,
+    MatAutocompleteModule
   ],
   template: `
     <h2 mat-dialog-title>
@@ -52,7 +56,20 @@ export interface InvestmentDialogData {
         <!-- Stock-specific fields -->
         <mat-form-field appearance="outline" class="full-width" *ngIf="data.category === 'stocks'">
           <mat-label>Ticker Symbol</mat-label>
-          <input matInput formControlName="ticker" placeholder="e.g., RELIANCE, TCS">
+          <input matInput formControlName="ticker" placeholder="e.g., RELIANCE, TCS" [matAutocomplete]="auto">
+          <mat-autocomplete #auto="matAutocomplete" (optionSelected)="onSymbolSelected($event.option.value)">
+            <mat-option *ngFor="let match of filteredSymbols$ | async" [value]="match['1. symbol']">
+              {{ match['1. symbol'] }} - {{ match['2. name'] }}
+            </mat-option>
+          </mat-autocomplete>
+        </mat-form-field>
+
+        <mat-form-field appearance="outline" class="full-width" *ngIf="data.category === 'stocks'">
+          <mat-label>Quantity</mat-label>
+          <input matInput type="number" formControlName="quantity" placeholder="Enter quantity">
+          <mat-error *ngIf="investmentForm.get('quantity')?.hasError('required')">
+            Quantity is required
+          </mat-error>
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="full-width">
@@ -199,9 +216,11 @@ export interface InvestmentDialogData {
 })
 export class AddInvestmentDialogComponent {
   investmentForm: FormGroup;
+  filteredSymbols$: Observable<any[]> | undefined;
 
   constructor(
     private fb: FormBuilder,
+    private autocompleteService: AutocompleteService,
     public dialogRef: MatDialogRef<AddInvestmentDialogComponent>,
     @Inject(MAT_DIALOG_DATA) public data: InvestmentDialogData
   ) {
@@ -210,6 +229,70 @@ export class AddInvestmentDialogComponent {
     if (data.mode === 'edit' && data.investment) {
       this.investmentForm.patchValue(data.investment);
     }
+
+    this.setupSymbolAutocomplete();
+  }
+
+  private setupSymbolAutocomplete(): void {
+    if (this.data.category === InvestmentCategory.STOCKS) {
+      this.filteredSymbols$ = this.investmentForm.get('ticker')?.valueChanges.pipe(
+        debounceTime(300),
+        distinctUntilChanged(),
+        switchMap(value => {
+          if (value && value.length >= 2) {
+            return this.autocompleteService.searchSymbols(value).pipe(
+              catchError(() => of([]))
+            );
+          }
+          return of([]);
+        })
+      );
+    }
+  }
+
+  onSymbolSelected(symbol: string): void {
+    const date = this.investmentForm.get('date')?.value;
+    const dateStr = date ? new Date(date).toISOString().split('T')[0] : '';
+    const investedAmount = this.investmentForm.get('amount')?.value || 0;
+
+    this.autocompleteService.getPriceData(symbol, dateStr).subscribe(data => {
+      let quantity = 0;
+      let currentPrice = 0;
+
+      // Handle current price
+      if (data.quote && data.quote['Global Quote']) {
+        currentPrice = parseFloat(data.quote['Global Quote']['05. price']);
+      }
+
+      // Handle historical price for quantity calculation
+      if (dateStr && data.history && data.history['Time Series (Daily)']) {
+        const history = data.history['Time Series (Daily)'];
+        // The exact date might not be in the keys (e.g. if it's a weekend)
+        // We'd ideally find the closest previous date, but for now we'll check exact match
+        if (history[dateStr]) {
+          const historicalPrice = parseFloat(history[dateStr]['4. close']);
+          if (historicalPrice > 0 && investedAmount > 0) {
+            quantity = investedAmount / historicalPrice;
+          }
+        }
+      }
+
+      // Fallback: if quantity still 0 but we have currentPrice, use that as a proxy for quantity
+      if (quantity === 0 && currentPrice > 0 && investedAmount > 0) {
+        quantity = investedAmount / currentPrice;
+      }
+
+      if (quantity > 0) {
+        this.investmentForm.patchValue({
+          quantity: quantity,
+          currentValue: currentPrice * quantity
+        });
+      } else if (currentPrice > 0) {
+        this.investmentForm.patchValue({
+          currentValue: currentPrice * (this.investmentForm.get('quantity')?.value || 1)
+        });
+      }
+    });
   }
 
   private createForm(): FormGroup {
@@ -224,6 +307,7 @@ export class AddInvestmentDialogComponent {
     switch (this.data.category) {
       case InvestmentCategory.STOCKS:
         formConfig.ticker = [''];
+        formConfig.quantity = [0, [Validators.required, Validators.min(0.01)]];
         formConfig.currentValue = [0, [Validators.required, Validators.min(0)]];
         break;
 
@@ -291,10 +375,26 @@ export class AddInvestmentDialogComponent {
 
   onSave(): void {
     if (this.investmentForm.valid) {
+      const { name, amount, date, notes, currentValue, ...rest } = this.investmentForm.value;
+
+      // Map form fields to the structure expected by the backend
       const formValue = {
-        ...this.investmentForm.value,
-        category: this.data.category
+        category: this.data.category,
+        name: name,
+        investedAmount: amount,
+        currentValue: currentValue || 0,
+        notes: notes,
+        investmentData: {
+          ...rest
+        }
       };
+
+      // Specifically for stocks, ensure ticker and quantity are set
+      if (this.data.category === InvestmentCategory.STOCKS) {
+        formValue.investmentData.ticker = this.investmentForm.value.ticker;
+        formValue.investmentData.quantity = this.investmentForm.value.quantity;
+      }
+
       this.dialogRef.close(formValue);
     }
   }

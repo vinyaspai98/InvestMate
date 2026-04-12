@@ -44,7 +44,7 @@ func main() {
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(firebaseApp, firestoreClient)
 	dashboardHandler := handlers.NewDashboardHandler(firestoreClient)
-	investmentHandler := handlers.NewInvestmentHandler(firestoreClient)
+	investmentHandler := handlers.NewInvestmentHandler(firestoreClient, cfg)
 	loanHandler := handlers.NewLoanHandler(firestoreClient)
 	transactionHandler := handlers.NewTransactionHandler(firestoreClient)
 	chartHandler := handlers.NewChartHandler(firestoreClient)
@@ -113,9 +113,12 @@ func main() {
 
 				// CRUD routes for specific investments
 				investments.GET("/detail/:id", investmentHandler.GetInvestment)
-				investments.POST("", investmentHandler.CreateInvestment)
 				investments.PUT("/:id", investmentHandler.UpdateInvestment)
 				investments.DELETE("/:id", investmentHandler.DeleteInvestment)
+
+				// Alpha Vantage proxy routes
+				investments.GET("/search", investmentHandler.SearchSymbols)
+				investments.GET("/price/:symbol", investmentHandler.GetPriceData)
 			}
 
 			// Loan routes

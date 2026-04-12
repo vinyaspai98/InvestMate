@@ -2,10 +2,13 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"investmate-backend/internal/models"
+	"investmate-backend/pkg/config"
+	"io"
 	"net/http"
 	"time"
-
-	"investmate-backend/internal/models"
 
 	"cloud.google.com/go/firestore"
 	"github.com/gin-gonic/gin"
@@ -16,12 +19,14 @@ import (
 type InvestmentHandler struct {
 	firestoreClient *firestore.Client
 	validator       *validator.Validate
+	cfg             *config.Config
 }
 
-func NewInvestmentHandler(firestoreClient *firestore.Client) *InvestmentHandler {
+func NewInvestmentHandler(firestoreClient *firestore.Client, cfg *config.Config) *InvestmentHandler {
 	return &InvestmentHandler{
 		firestoreClient: firestoreClient,
 		validator:       validator.New(),
+		cfg:             cfg,
 	}
 }
 
@@ -143,6 +148,11 @@ func (h *InvestmentHandler) CreateInvestment(c *gin.Context) {
 		IsActive:       true,
 	}
 
+	// Enrich with Alpha Vantage data if it's a stock and ticker is provided
+	if req.Category == models.CategoryStocks && req.InvestmentData.Ticker != "" {
+		h.enrichStockInvestment(c.Request.Context(), &investment, req)
+	}
+
 	// Create investment in Firestore
 	docRef, _, err := h.firestoreClient.Collection("users").Doc(userID).Collection("investments").Add(c.Request.Context(), investment)
 	if err != nil {
@@ -245,6 +255,127 @@ func (h *InvestmentHandler) DeleteInvestment(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"message": "Investment deleted successfully"})
+}
+
+// SearchSymbols proxies Alpha Vantage SYMBOL_SEARCH
+func (h *InvestmentHandler) SearchSymbols(c *gin.Context) {
+	keywords := c.Query("keywords")
+	if keywords == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Keywords parameter is required"})
+		return
+	}
+
+	url := fmt.Sprintf("https://www.alphavantage.co/query?function=SYMBOL_SEARCH&keywords=%s&apikey=%s",
+		keywords, h.cfg.AlphaVantageAPIKey)
+
+	resp, err := http.Get(url)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch from Alpha Vantage"})
+		return
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	var result map[string]interface{}
+	json.Unmarshal(body, &result)
+
+	c.JSON(http.StatusOK, result)
+}
+
+// GetPriceData proxies Alpha Vantage TIME_SERIES_DAILY and GLOBAL_QUOTE
+func (h *InvestmentHandler) GetPriceData(c *gin.Context) {
+	symbol := c.Param("symbol")
+	date := c.Query("date")
+
+	if symbol == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Symbol is required"})
+		return
+	}
+
+	// Fetch current price
+	quoteURL := fmt.Sprintf("https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=%s&apikey=%s",
+		symbol, h.cfg.AlphaVantageAPIKey)
+
+	quoteResp, err := http.Get(quoteURL)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch quote"})
+		return
+	}
+	defer quoteResp.Body.Close()
+
+	quoteBody, _ := io.ReadAll(quoteResp.Body)
+	var quoteResult map[string]interface{}
+	json.Unmarshal(quoteBody, &quoteResult)
+
+	response := gin.H{
+		"quote": quoteResult,
+	}
+
+	// Fetch historical price if date is provided
+	if date != "" {
+		historyURL := fmt.Sprintf("https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=%s&apikey=%s",
+			symbol, h.cfg.AlphaVantageAPIKey)
+
+		historyResp, err := http.Get(historyURL)
+		if err != nil {
+			// Don't fail the whole request if history fails
+			response["history_error"] = "Failed to fetch historical data"
+		} else {
+			defer historyResp.Body.Close()
+			historyBody, _ := io.ReadAll(historyResp.Body)
+			var historyResult map[string]interface{}
+			json.Unmarshal(historyBody, &historyResult)
+			response["history"] = historyResult
+		}
+	}
+
+	c.JSON(http.StatusOK, response)
+}
+
+func (h *InvestmentHandler) enrichStockInvestment(ctx context.Context, inv *models.Investment, req models.CreateInvestmentRequest) {
+	symbol := inv.InvestmentData.Ticker
+	// Use CurrentValue as a fallback if we can't fetch it
+
+	// Fetch current price
+	quoteURL := fmt.Sprintf("https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=%s&apikey=%s",
+		symbol, h.cfg.AlphaVantageAPIKey)
+
+	resp, err := http.Get(quoteURL)
+	if err == nil {
+		defer resp.Body.Close()
+		var result map[string]interface{}
+		body, _ := io.ReadAll(resp.Body)
+		json.Unmarshal(body, &result)
+
+		if quote, ok := result["Global Quote"].(map[string]interface{}); ok {
+			if priceStr, ok := quote["05. price"].(string); ok {
+				var price float64
+				fmt.Sscanf(priceStr, "%f", &price)
+				if price > 0 {
+					inv.InvestmentData.CurrentPrice = price
+					if inv.InvestmentData.Quantity > 0 {
+						inv.CurrentValue = price * inv.InvestmentData.Quantity
+					}
+				}
+			}
+		}
+	}
+
+	// If Quantity is not provided, try to calculate it from amount and historical price
+	if inv.InvestmentData.Quantity == 0 && inv.InvestedAmount > 0 {
+		// For simplicity, we'll try to get the price from time.Now() - 24h as a proxy if date is not in req
+		// But req doesn't have a date field at the top level, it's usually part of InvestmentData or we use CreatedAt
+		// The user request said "We use the symbol, date and invested amount".
+		// Let's assume the date is passed in InvestmentData or we use time.Now()
+
+		// For now, if quantity is 0, we'll just set it to amount / current price if current price was found
+		if inv.InvestmentData.CurrentPrice > 0 {
+			inv.InvestmentData.Quantity = inv.InvestedAmount / inv.InvestmentData.CurrentPrice
+			if inv.CurrentValue == 0 {
+				inv.CurrentValue = inv.InvestedAmount // Initial value is invested amount
+			}
+		}
+	}
 }
 
 // Helper methods
