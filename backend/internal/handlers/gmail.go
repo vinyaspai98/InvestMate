@@ -296,6 +296,9 @@ func (h *GmailHandler) parseStockRows(rows [][]string, emailDate time.Time) ([]m
 		dateStr := matches[5]
 
 		company = regexp.MustCompile(`^\d+\s+`).ReplaceAllString(company, "")
+		isMutualFund := strings.HasPrefix(isin, "INF")
+		company = cleanInvestmentName(company, isMutualFund)
+
 		quantityStr = strings.ReplaceAll(quantityStr, ",", "")
 		quantity, _ := strconv.ParseFloat(quantityStr, 64)
 		if quantity == 0 {
@@ -317,21 +320,34 @@ func (h *GmailHandler) parseStockRows(rows [][]string, emailDate time.Time) ([]m
 			}
 		}
 
-		investment := models.Investment{
-			Category:  models.CategoryStocks,
-			Name:      company,
-			CreatedAt: time.Now(),
-			UpdatedAt: time.Now(),
-			IsActive:  true,
-			InvestmentData: models.InvestmentData{
+		category := models.CategoryStocks
+		var invData models.InvestmentData
+		if isMutualFund {
+			category = models.CategoryMutualFunds
+			invData = models.InvestmentData{
+				FundName: company,
+				Units:    quantity,
+				Ticker:   isin,
+			}
+		} else {
+			invData = models.InvestmentData{
 				Ticker:   isin,
 				Quantity: quantity,
-			},
+			}
+		}
+
+		investment := models.Investment{
+			Category:       category,
+			Name:           company,
+			CreatedAt:      time.Now(),
+			UpdatedAt:      time.Now(),
+			IsActive:       true,
+			InvestmentData: invData,
 		}
 		investments = append(investments, investment)
 
 		transaction := models.Transaction{
-			Category:    models.CategoryStocks,
+			Category:    category,
 			Type:        txType,
 			Quantity:    quantity,
 			Date:        txDate,
@@ -459,6 +475,7 @@ func (h *GmailHandler) parseMutualFundTransactions(text string, email *gmail.Mes
 		}
 
 		fundName := strings.TrimSpace(match[1])
+		fundName = cleanInvestmentName(fundName, true)
 		units, _ := strconv.ParseFloat(match[2], 64)
 		nav, _ := strconv.ParseFloat(match[3], 64)
 		amount, _ := strconv.ParseFloat(match[4], 64)
@@ -617,6 +634,51 @@ func (h *GmailHandler) getUserProfile(ctx context.Context, userID string) (*mode
 		return nil, err
 	}
 	user.ID = userID
-
 	return &user, nil
 }
+
+// cleanInvestmentName cleans up stock and mutual fund names for Alpha Vantage API queries
+func cleanInvestmentName(name string, isMutualFund bool) string {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return ""
+	}
+
+	if isMutualFund {
+		// 1. Remove AMC / MF House prefix if present (e.g. "MOTILAL OSWAL AMC LTD#MOTILAL OSWAL MF-...")
+		if strings.Contains(name, "#") {
+			parts := strings.SplitN(name, "#", 2)
+			if len(parts) > 1 {
+				rightPart := strings.TrimSpace(parts[1])
+				// Check for house name followed by hyphen
+				if idx := strings.Index(rightPart, "-"); idx != -1 {
+					prefix := strings.TrimSpace(rightPart[:idx])
+					prefixUpper := strings.ToUpper(prefix)
+					if strings.Contains(prefixUpper, "MF") || strings.Contains(prefixUpper, "MUTUAL FUND") {
+						name = strings.TrimSpace(rightPart[idx+1:])
+					} else {
+						name = rightPart
+					}
+				} else {
+					name = rightPart
+				}
+			}
+		}
+
+		// 2. Clean up common suffixes (Direct, Regular, Plan, Growth, Option etc.)
+		planRegex := regexp.MustCompile(`(?i)(?:\s*[-/]\s*|\s+)\b(?:DIRECT|REGULAR|PLAN|PL|OPT|OPTION)\b.*$`)
+		name = planRegex.ReplaceAllString(name, "")
+
+		// Strip trailing growth options if they are preceded by a separator
+		growthRegex := regexp.MustCompile(`(?i)\s*[-/]\s*GROWTH\b.*$`)
+		name = growthRegex.ReplaceAllString(name, "")
+	} else {
+		// Clean up stock names
+		// Remove everything after the hyphen if it starts with "EQUITY SHARES" or "NEW EQUITY SHARES" or "EQUITY"
+		stockRegex := regexp.MustCompile(`(?i)\s*-\s*(?:NEW\s+)?EQUITY(?:\s+SHARES)?.*$`)
+		name = stockRegex.ReplaceAllString(name, "")
+	}
+
+	return strings.TrimSpace(name)
+}
+
