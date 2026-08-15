@@ -28,7 +28,7 @@ export class DashboardComponent implements OnInit {
   categorySummaries$: Observable<CategorySummary[]>;
   isLoading = true;
   error: string | null = null;
-  
+
   categoryDetails = [
     {
       category: InvestmentCategory.STOCKS,
@@ -42,7 +42,7 @@ export class DashboardComponent implements OnInit {
       title: 'Mutual Funds',
       icon: 'account_balance',
       color: '#2196f3',
-      route: '/investments/mutualfunds'
+      route: '/investments/mutualFunds'
     },
     {
       category: InvestmentCategory.FDS,
@@ -77,17 +77,17 @@ export class DashboardComponent implements OnInit {
         console.error('Error loading net worth:', error);
         this.error = error.message || 'Failed to load dashboard data. Please try again.';
         this.isLoading = false;
-        
+
         // If 401 Unauthorized, redirect to login
         if (error.message?.includes('Unauthorized') || error.message?.includes('log in')) {
           this.router.navigate(['/login']);
         }
-        
+
         // Return empty data to prevent breaking the UI
         return of({ totalAssets: 0, totalLiabilities: 0, netWorth: 0 });
       })
     );
-    
+
     this.categorySummaries$ = this.investmentService.getCategorySummaries().pipe(
       catchError(error => {
         console.error('Error loading category summaries:', error);

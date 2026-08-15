@@ -113,7 +113,7 @@ export class LayoutComponent implements OnInit {
     this.navigationItems.forEach(item => {
       item.active = item.route === route;
     });
-    
+
     this.router.navigate([route]);
   }
 

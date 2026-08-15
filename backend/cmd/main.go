@@ -48,7 +48,7 @@ func main() {
 	loanHandler := handlers.NewLoanHandler(firestoreClient)
 	transactionHandler := handlers.NewTransactionHandler(firestoreClient)
 	chartHandler := handlers.NewChartHandler(firestoreClient)
-	gmailHandler := handlers.NewGmailHandler(firestoreClient)
+	gmailHandler := handlers.NewGmailHandler(firestoreClient, cfg.GeminiAPIKey, cfg.AlphaVantageAPIKey)
 
 	// Setup Gin router
 	if cfg.Environment == "production" {

@@ -16,6 +16,8 @@ type Config struct {
 	FirebaseCredentialsPath string
 	LogLevel                string
 	CORSAllowedOrigins      []string
+	GeminiAPIKey            string
+	AlphaVantageAPIKey      string
 }
 
 func Load() *Config {
@@ -29,6 +31,8 @@ func Load() *Config {
 		FirebaseCredentialsPath: getEnv("FIREBASE_CREDENTIALS_PATH", ""),
 		LogLevel:                getEnv("LOG_LEVEL", "info"),
 		CORSAllowedOrigins:      origins,
+		GeminiAPIKey:            getEnv("GEMINI_API_KEY", ""),
+		AlphaVantageAPIKey:      getEnv("ALPHA_VANTAGE_API_KEY", ""),
 	}
 }
 
