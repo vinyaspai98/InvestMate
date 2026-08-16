@@ -260,6 +260,10 @@ export class InvestmentDetailComponent implements OnInit {
     return value >= 0;
   }
 
+  canAddInvestment(): boolean {
+    return this.category !== InvestmentCategory.STOCKS && this.category !== InvestmentCategory.MUTUAL_FUNDS;
+  }
+
   onAddInvestment(): void {
     const dialogRef = this.dialog.open(AddInvestmentDialogComponent, {
       width: '600px',

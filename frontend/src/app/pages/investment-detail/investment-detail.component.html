@@ -11,7 +11,7 @@
           <p>Manage your {{ categoryDetail?.title?.toLowerCase() }} portfolio</p>
         </div>
       </div>
-      <button mat-fab color="primary" (click)="onAddInvestment()" class="add-fab">
+      <button mat-fab color="primary" (click)="onAddInvestment()" class="add-fab" *ngIf="canAddInvestment()">
         <mat-icon>add</mat-icon>
       </button>
     </div>
