@@ -319,8 +319,21 @@ import { User } from '../../models/user.model';
         }
       }
 
-      // Material form field labels
+      // Material form fields
       mat-form-field {
+        .mat-mdc-input-element,
+        input.mat-mdc-input-element {
+          color: #ffffff !important;
+        }
+
+        .mat-mdc-select-value {
+          color: #ffffff !important;
+        }
+
+        .mat-mdc-select-arrow {
+          color: rgba(255, 255, 255, 0.7) !important;
+        }
+
         .mat-mdc-form-field-label,
         .mdc-floating-label {
           color: rgba(255, 255, 255, 0.7) !important;
@@ -328,6 +341,46 @@ import { User } from '../../models/user.model';
 
         .mat-mdc-form-field-label.mdc-floating-label--float-above {
           color: rgba(255, 255, 255, 0.9) !important;
+        }
+
+        [matPrefix],
+        [matSuffix],
+        .mat-icon {
+          color: rgba(255, 255, 255, 0.7);
+        }
+
+        .mdc-notched-outline__leading,
+        .mdc-notched-outline__notch,
+        .mdc-notched-outline__trailing {
+          border-color: rgba(255, 255, 255, 0.38) !important;
+        }
+
+        &:hover:not(.mat-form-field-disabled):not(.mat-focused) {
+          .mdc-notched-outline__leading,
+          .mdc-notched-outline__notch,
+          .mdc-notched-outline__trailing {
+            border-color: rgba(255, 255, 255, 0.87) !important;
+          }
+
+          .mat-mdc-floating-label,
+          .mdc-floating-label,
+          .mat-mdc-form-field-label {
+            color: rgba(255, 255, 255, 0.9) !important;
+          }
+        }
+
+        &.mat-focused {
+          .mdc-notched-outline__leading,
+          .mdc-notched-outline__notch,
+          .mdc-notched-outline__trailing {
+            border-color: #90caf9 !important;
+          }
+
+          .mat-mdc-floating-label,
+          .mdc-floating-label,
+          .mat-mdc-form-field-label {
+            color: #90caf9 !important;
+          }
         }
       }
     }

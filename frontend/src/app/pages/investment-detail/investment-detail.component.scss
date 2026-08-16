@@ -327,12 +327,20 @@
     }
 
     .tables-section {
+      ::ng-deep {
+        .mat-mdc-tab-labels {
+          .mat-mdc-tab {
+            .mdc-tab__text-label {
+              color: rgba(255, 255, 255, 0.7);
+            }
 
-      // Tab labels styling for dark mode
-      .mat-mdc-tab-labels {
-        .mat-mdc-tab {
-          .mdc-tab__text-label {
-            color: #ffffff;
+            &.mdc-tab--active .mdc-tab__text-label {
+              color: #ffffff;
+            }
+
+            &:hover .mdc-tab__text-label {
+              color: #ffffff;
+            }
           }
         }
       }
@@ -350,11 +358,37 @@
 
           .investments-table,
           .transactions-table {
+            background: #1e1e1e;
+
+            th.mat-mdc-header-cell,
+            .mat-mdc-header-cell {
+              color: #ffffff !important;
+              font-weight: 600;
+              border-bottom-color: rgba(255, 255, 255, 0.1);
+            }
+
+            td.mat-mdc-cell,
+            .mat-mdc-cell {
+              color: #ffffff !important;
+              border-bottom-color: rgba(255, 255, 255, 0.1);
+            }
+
+            .investment-name {
+              strong {
+                color: #ffffff;
+              }
+
+              .ticker {
+                color: #b0b0b0;
+              }
+            }
 
             .investment-row,
             .transaction-row {
+              border-bottom-color: rgba(255, 255, 255, 0.1);
+
               &:hover {
-                background: rgba(255, 255, 255, 0.02);
+                background: rgba(255, 255, 255, 0.04);
               }
             }
           }
@@ -418,11 +452,13 @@
 .mat-mdc-table {
   background: transparent;
 
+  th.mat-mdc-header-cell,
   .mat-mdc-header-cell {
     font-weight: 600;
     color: #333;
   }
 
+  td.mat-mdc-cell,
   .mat-mdc-cell {
     color: #333;
   }
@@ -430,12 +466,19 @@
 
 :host-context(.dark-theme) {
   .mat-mdc-table {
+    background: #1e1e1e;
+
+    th.mat-mdc-header-cell,
     .mat-mdc-header-cell {
-      color: #ffffff;
+      color: #ffffff !important;
+      font-weight: 600;
+      border-bottom-color: rgba(255, 255, 255, 0.1);
     }
 
+    td.mat-mdc-cell,
     .mat-mdc-cell {
-      color: #ffffff;
+      color: #ffffff !important;
+      border-bottom-color: rgba(255, 255, 255, 0.1);
     }
   }
 }
