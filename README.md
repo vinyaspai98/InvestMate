@@ -1,217 +1,226 @@
-# InvestMate - Financial Tracking Application
+# InvestMate - Intelligent Financial Tracking Platform
 
-A comprehensive financial tracking Single-Page Application (SPA) designed specifically for the Indian financial market.
-
-## Overview
-
-InvestMate helps Indian investors track their complete financial portfolio including stocks, mutual funds, fixed deposits, insurance policies, and loans. The application provides a clean, card-based dashboard with real-time net worth calculations and detailed performance analytics.
-
-## Features
-
-### Core Functionality
-- **Dashboard**: Overview of total net worth and category-wise investments
-- **Portfolio Tracking**: Track stocks, mutual funds, FDs, insurance, and loans
-- **Performance Analytics**: Profit/loss calculations and percentage tracking
-- **Transaction History**: Detailed transaction logs for each category
-- **Responsive Design**: Works seamlessly on desktop and mobile devices
-
-### User Experience
-- **Dark/Light Theme**: Toggle between dark and light modes
-- **Material Design**: Clean, modern UI using Angular Material
-- **Sidebar Navigation**: Easy access to all sections
-- **Card-based Layout**: Information organized in intuitive cards
-- **Interactive Charts**: Visual representation of performance (placeholder implemented)
-
-### Security
-- **Authentication**: Login/Signup with Firebase integration
-- **Route Protection**: Protected routes with authentication guards
-- **User Preferences**: Personalized settings and preferences
-
-## Technology Stack
-
-### Frontend
-- **Angular 20+** with TypeScript
-- **Angular Material** for UI components
-- **RxJS** for reactive programming
-- **SCSS** for styling
-- **Chart.js** (ready for integration)
-
-### Backend (Structure Created)
-- **GoLang** with Gin framework
-- **Firebase** for authentication and database
-- **RESTful APIs** for data management
-- **JWT** authentication
-- **CORS** enabled for frontend integration
-
-### Development Tools
-- **Angular CLI** for project management
-- **TypeScript** for type safety
-- **ESLint** for code quality
-- **Responsive design** with CSS Grid and Flexbox
-
-## Project Structure
-
-```
-InvestMate1/
-├── frontend/                 # Angular frontend application
-│   ├── src/
-│   │   ├── app/
-│   │   │   ├── components/   # Reusable components
-│   │   │   │   └── layout/   # Main layout with sidebar
-│   │   │   ├── pages/        # Page components
-│   │   │   │   ├── auth/     # Login/Signup pages
-│   │   │   │   ├── dashboard/# Main dashboard
-│   │   │   │   ├── investment-detail/ # Category details
-│   │   │   │   ├── profile/  # User profile
-│   │   │   │   └── about/    # About page
-│   │   │   ├── services/     # Angular services
-│   │   │   ├── models/       # TypeScript interfaces
-│   │   │   └── guards/       # Route guards
-│   │   └── styles.scss       # Global styles
-├── backend/                  # GoLang backend (structure)
-│   ├── cmd/                  # Application entry points
-│   ├── internal/             # Private application code
-│   │   ├── handlers/         # HTTP handlers
-│   │   ├── models/           # Data models
-│   │   └── middleware/       # HTTP middleware
-│   └── pkg/                  # Public packages
-└── .github/                  # Project documentation
-```
-
-## Getting Started
-
-### Prerequisites
-- Node.js (v18 or higher)
-- Angular CLI (`npm install -g @angular/cli`)
-- Go (v1.21 or higher) - for backend
-- Firebase account (for production deployment)
-
-### Installation
-
-1. **Clone the repository**
-   ```bash
-   git clone <repository-url>
-   cd InvestMate1
-   ```
-
-2. **Frontend Setup**
-   ```bash
-   cd frontend
-   npm install
-   ng serve
-   ```
-   The application will be available at `http://localhost:4200`
-
-3. **Backend Setup** (Optional - for API integration)
-   ```bash
-   cd backend
-   go mod tidy
-   go run cmd/main.go
-   ```
-   The API will be available at `http://localhost:8080`
-
-### Demo Credentials
-For testing the application, use these demo credentials:
-- **Email**: user@investmate.com
-- **Password**: password
-
-## Current Implementation Status
-
-### ✅ Completed Features
-- [x] Project setup with Angular and Go
-- [x] Authentication module (Login/Signup)
-- [x] Responsive sidebar navigation
-- [x] Dashboard with net worth calculation
-- [x] Investment detail pages for all categories
-- [x] Profile management
-- [x] Dark/Light theme system
-- [x] Mocked data services
-- [x] Responsive design
-- [x] About page
-
-### 🚧 In Progress
-- [ ] Backend API integration
-- [ ] Firebase authentication setup
-- [ ] Chart visualizations
-- [ ] Add/Edit investment modals
-
-### 📋 Future Enhancements
-- [ ] Real-time market data integration
-- [ ] Push notifications
-- [ ] Export functionality
-- [ ] Advanced analytics
-- [ ] Mobile app development
-
-## Key Components
-
-### Dashboard
-- Net worth header card with total assets and liabilities
-- Category summary cards with profit/loss calculations
-- Quick action buttons for common tasks
-- Navigation to detailed category views
-
-### Investment Categories
-- **Stocks**: Individual stock holdings with P&L tracking
-- **Mutual Funds**: SIP and lump sum investments
-- **Fixed Deposits**: Interest rate and maturity tracking
-- **Insurance**: Policy value and premium tracking
-- **Loans**: Outstanding balance and EMI tracking
-
-### Data Models
-- Investment entities with category-specific fields
-- Transaction history for all operations
-- User preferences and profile information
-- Category summaries with aggregated metrics
-
-## Development Guidelines
-
-### Code Style
-- Follow Angular style guide
-- Use TypeScript strict mode
-- Implement responsive design patterns
-- Follow Material Design principles
-
-### Data Flow
-- Services handle all data operations
-- Observables for reactive programming
-- Mock data services for development
-- Prepared for API integration
-
-### Security
-- Route guards for protected pages
-- Authentication state management
-- Input validation and sanitization
-- HTTPS enforcement (production)
-
-## Configuration
-
-### Environment Variables
-- `FIREBASE_CONFIG`: Firebase configuration
-- `API_BASE_URL`: Backend API URL
-- `ENVIRONMENT`: Development/Production mode
-
-### Theme Customization
-The application supports extensive theming through SCSS variables and Angular Material theme system.
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
-
-## Support
-
-For questions, issues, or suggestions:
-- Create an issue in the repository
-- Contact the development team
-- Check the documentation in `.github/copilot-instructions.md`
-
-## License
-
-This project is developed for educational and demonstration purposes.
+A comprehensive, full-stack personal portfolio and financial tracking application designed specifically for the Indian financial market. InvestMate combines an Angular 20 Material frontend with a Go (Gin) backend and Google Gemini AI to automate portfolio tracking across stocks, mutual funds, fixed deposits, insurance, and loans.
 
 ---
 
-**InvestMate** - Your trusted financial companion for tracking investments in the Indian market.
+## 🌟 Highlights & Key Features
+
+### 🤖 AI-Powered Gmail Sync
+- **Automated CDSL Ingestion**: Connects with the user's Gmail via Google OAuth to retrieve Demat transaction emails from `services@cdslindia.co.in` (*"Transactions In Your Demat Account"*).
+- **Gemini AI Extraction**: Leverages Google Gemini AI with structured schema instructions to accurately extract stock and mutual fund transactions (ISIN, ticker, company/fund name, quantity, transaction date, buy/sell action).
+- **Automated Market Pricing**: Resolves real-time stock prices (BSE/NSE) using Yahoo Finance, Indian mutual fund NAVs via `mfapi.in`, and market data via Alpha Vantage.
+- **Intelligent Holdings Update**: Matches ISINs against existing holdings, computes weighted-average purchase prices on buys, and deducts quantities on sells.
+
+### 📊 Comprehensive Multi-Asset Dashboard
+- **Net Worth Tracking**: Live calculation of total assets, liabilities, and overall net worth.
+- **Category Summary Cards**: Visual cards for Stocks, Mutual Funds, Fixed Deposits, Insurance Policies, and Loans showing invested capital, current valuation, and absolute/percentage P&L.
+- **Category Detail Pages**: Dedicated asset views with detailed holdings tables, transaction histories, and asset-specific attributes.
+
+### 📈 Interactive Performance Analytics
+- **Time-Series Charts**: Interactive line charts powered by `Chart.js` and `ng2-charts` with period filtering (`1M`, `3M`, `1Y`, `All`).
+- **Dynamic Asset Valuation**: Portfolio timelines generated based on transaction histories and current market prices.
+
+### ➕ Dynamic Investment Management
+- **Category-Adaptive Dialogs**: Add/Edit modal dialogs (`AddInvestmentDialogComponent`) with dynamic form controls tailored to each asset type (e.g. Ticker & Quantity for Stocks, Folio & NAV for Mutual Funds, Interest Rate & Maturity for FDs).
+- **Manual & Automated Entry**: Freely add manual holdings or let the Gmail sync automatically populate your demat investments.
+
+### 🔒 Enterprise-Grade Security & Authentication
+- **Google OAuth & Firebase Auth**: One-click Google Sign-In with requested `gmail.readonly` permission.
+- **JWT Verification**: Functional Angular HTTP interceptor attaches Firebase ID tokens to all backend API calls, verified on the Go server.
+- **User-Isolated Database**: Subcollection architecture in Firebase Firestore ensuring total privacy and isolation between users.
+
+### 🎨 Modern Material Experience
+- **Dark & Light Themes**: Seamless switching between dark and light modes with persistent user preferences.
+- **Responsive Layout**: Designed for desktops, tablets, and mobile devices with collapsible navigation and Angular Material components.
+
+---
+
+## 🛠️ Technology Stack
+
+### Frontend
+- **Framework**: Angular 20 (Standalone Components, TypeScript)
+- **UI & Layout**: Angular Material (Cards, Tables, Dialogs, Chips, Snackbars) & SCSS
+- **State & Reactivity**: RxJS (Observables, `shareReplay` caching)
+- **Charts**: Chart.js 4.x & ng2-charts 8.x
+- **Authentication**: AngularFire / Firebase Auth SDK
+
+### Backend
+- **Language & Runtime**: Go 1.24+
+- **HTTP Framework**: Gin Web Framework
+- **Database**: Google Cloud Firestore
+- **AI & LLM**: Google Gemini API (Structured JSON extraction)
+- **Email Ingestion**: Gmail API via OAuth2
+- **Market Data**: Yahoo Finance API, mfapi.in NAV API, Alpha Vantage API
+
+---
+
+## 📁 Repository Structure
+
+```
+InvestMate/
+├── frontend/                          # Angular 20 frontend SPA
+│   ├── src/
+│   │   ├── app/
+│   │   │   ├── components/
+│   │   │   │   ├── add-investment-dialog/ # Modal for adding/editing investments
+│   │   │   │   └── layout/                # App layout, header, and sidebar
+│   │   │   ├── guards/
+│   │   │   │   └── auth.guard.ts          # Route protection guard
+│   │   │   ├── interceptors/
+│   │   │   │   └── auth.interceptor.ts    # Firebase JWT bearer token injector
+│   │   │   ├── models/
+│   │   │   │   ├── investment.model.ts    # Investment, category, loan & chart models
+│   │   │   │   └── user.model.ts          # User and preferences models
+│   │   │   ├── pages/
+│   │   │   │   ├── about/                 # About page
+│   │   │   │   ├── auth/                  # Login and Signup (Google OAuth)
+│   │   │   │   ├── dashboard/             # Portfolio net worth dashboard
+│   │   │   │   ├── investment-detail/     # Detailed category views & charts
+│   │   │   │   └── profile/               # Profile settings & Gmail sync trigger
+│   │   │   ├── services/
+│   │   │   │   ├── auth.service.ts        # Firebase Auth & Google Sign-In
+│   │   │   │   ├── gmail.service.ts       # Gmail sync trigger service
+│   │   │   │   ├── investment.service.ts  # REST API client for investments & charts
+│   │   │   │   ├── mock-data.service.ts   # Offline mock data fallback
+│   │   │   │   └── theme.service.ts       # Dark/Light theme state
+│   │   │   ├── app.config.ts              # Firebase & HTTP providers
+│   │   │   └── app.routes.ts              # Application route declarations
+│   │   ├── environments/                  # Environment configurations
+│   │   └── styles.scss                    # Global styling and Material theme
+│   └── package.json
+│
+├── backend/                           # Go REST API
+│   ├── cmd/
+│   │   └── main.go                    # Entry point & router configuration
+│   ├── internal/
+│   │   ├── constants/                 # Collection names and constants
+│   │   ├── handlers/                  # HTTP route handlers
+│   │   │   ├── auth.go                # Token verification & profile
+│   │   │   ├── chart.go               # Time-series chart handlers
+│   │   │   ├── dashboard.go           # Net worth & dashboard summaries
+│   │   │   ├── gmail.go               # Gmail sync, CDSL parsing & Gemini AI
+│   │   │   ├── investment.go          # Investment CRUD & category summaries
+│   │   │   ├── loan.go                # Loan CRUD & EMI calculations
+│   │   │   ├── transaction.go         # Transaction ledger handlers
+│   │   │   └── prompts/               # Gemini prompt system instructions
+│   │   ├── middleware/
+│   │   │   └── auth.go                # Firebase JWT verification middleware
+│   │   └── models/                    # Go structs for Firestore documents
+│   ├── pkg/
+│   │   └── config/                    # Config loader and Firebase initialization
+│   ├── configs/                       # Service account keys (git-ignored)
+│   ├── Dockerfile                     # Docker container definition
+│   ├── go.mod                         # Go module dependencies
+│   └── .env.example                   # Environment variable template
+│
+└── README.md                          # Main project documentation (this file)
+```
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+- **Node.js**: v18.0.0 or higher
+- **Angular CLI**: `npm install -g @angular/cli`
+- **Go**: v1.24 or higher
+- **Firebase Project**: Firestore and Authentication (Google provider) enabled
+- **Google Cloud / Gemini API Key**: For AI email extraction
+- **Alpha Vantage API Key**: (Optional) For fallback market quotes
+
+---
+
+### 1. Backend Setup
+
+1. **Navigate to the backend directory**:
+   ```bash
+   cd backend
+   cp .env.example .env
+   ```
+
+2. **Configure `.env`**:
+   Fill in your Firebase project ID, credentials path, and API keys:
+   ```env
+   PORT=8080
+   ENVIRONMENT=development
+   FIREBASE_PROJECT_ID=your-firebase-project-id
+   FIREBASE_CREDENTIALS_PATH=./configs/firebase-service-account.json
+   CORS_ALLOWED_ORIGINS=http://localhost:4200,http://localhost:3000
+   GEMINI_API_KEY=your-gemini-api-key
+   ALPHA_VANTAGE_API_KEY=your-alpha-vantage-api-key
+   ```
+
+3. **Install Go packages and run**:
+   ```bash
+   go mod tidy
+   go run cmd/main.go
+   ```
+   The backend API will run on `http://localhost:8080`.
+
+---
+
+### 2. Frontend Setup
+
+1. **Navigate to the frontend directory**:
+   ```bash
+   cd frontend
+   npm install
+   ```
+
+2. **Configure Environment**:
+   Update `frontend/src/environments/environment.ts` with your Firebase web configuration:
+   ```typescript
+   export const environment = {
+     production: false,
+     apiBaseUrl: 'http://localhost:8080/api/v1',
+     firebase: {
+       apiKey: "YOUR_FIREBASE_API_KEY",
+       authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+       projectId: "YOUR_PROJECT_ID",
+       storageBucket: "YOUR_PROJECT_ID.firebasestorage.app",
+       messagingSenderId: "YOUR_SENDER_ID",
+       appId: "YOUR_APP_ID",
+       measurementId: "YOUR_MEASUREMENT_ID"
+     }
+   };
+   ```
+
+3. **Start Angular Dev Server**:
+   ```bash
+   npm start
+   ```
+   Access the application at `http://localhost:4200`.
+
+---
+
+## 📋 Implementation Status
+
+### ✅ Completed & Active Features
+- [x] Full-stack architecture with Angular 20 and Go 1.24+ (Gin)
+- [x] Firebase Authentication with Google Sign-In and Gmail scopes
+- [x] JWT token validation middleware and HTTP interceptor
+- [x] User-isolated Firestore subcollections for data security
+- [x] Portfolio Dashboard with live net worth, assets, and liabilities calculations
+- [x] Category detail pages for Stocks, Mutual Funds, Fixed Deposits, Insurance, and Loans
+- [x] Interactive performance line charts (1M, 3M, 1Y, All) with Chart.js & ng2-charts
+- [x] Dynamic Add & Edit investment modals with category-specific validation
+- [x] Automated Gmail sync for CDSL Demat transaction emails
+- [x] Google Gemini AI integration for structured email transaction parsing
+- [x] Real-time market pricing via Yahoo Finance (BSE/NSE) and Indian MF NAVs via mfapi.in
+- [x] ISIN matching with automated purchase averaging and sell transaction processing
+- [x] Dark & Light theme switching with Angular Material
+- [x] Profile management and manual Gmail sync trigger UI
+
+### 🔮 Future Roadmap
+- [ ] Automated scheduled background sync for Gmail transactions
+- [ ] CAMS & KFintech Mutual Fund CAS statement PDF parsing
+- [ ] Dividend tracking and automated payout logging
+- [ ] CSV/Excel portfolio import and export
+- [ ] Mobile application using Ionic or Flutter
+
+---
+
+## 📄 License
+
+This project is licensed for educational and personal financial management use.
