@@ -1,4 +1,4 @@
-import { Component, OnInit, ViewChild } from '@angular/core';
+import { Component, OnInit, OnDestroy, ViewChild } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { ActivatedRoute, Router } from '@angular/router';
 import { MatCardModule } from '@angular/material/card';
@@ -11,8 +11,8 @@ import { MatDialogModule, MatDialog } from '@angular/material/dialog';
 import { MatSnackBar, MatSnackBarModule } from '@angular/material/snack-bar';
 import { BaseChartDirective } from 'ng2-charts';
 import { ChartConfiguration, ChartOptions } from 'chart.js';
-import { Observable, of, BehaviorSubject } from 'rxjs';
-import { catchError, tap } from 'rxjs/operators';
+import { Observable, of, Subscription } from 'rxjs';
+import { catchError } from 'rxjs/operators';
 import { InvestmentService } from '../../services/investment.service';
 import { Investment, InvestmentCategory, CategorySummary, Transaction, ChartPeriod, ChartData } from '../../models/investment.model';
 import { AddInvestmentDialogComponent } from '../../components/add-investment-dialog/add-investment-dialog.component';
@@ -35,7 +35,7 @@ import { AddInvestmentDialogComponent } from '../../components/add-investment-di
   templateUrl: './investment-detail.component.html',
   styleUrls: ['./investment-detail.component.scss']
 })
-export class InvestmentDetailComponent implements OnInit {
+export class InvestmentDetailComponent implements OnInit, OnDestroy {
   @ViewChild(BaseChartDirective) chart?: BaseChartDirective;
   
   category!: InvestmentCategory;
@@ -44,10 +44,11 @@ export class InvestmentDetailComponent implements OnInit {
   investmentsDataSource = new MatTableDataSource<Investment>([]);
   transactionsDataSource = new MatTableDataSource<Transaction>([]);
   
-  // Keep observables for other uses
-  investments$: Observable<Investment[]> = of([]);
   categorySummary$!: Observable<CategorySummary>;
-  transactions$: Observable<Transaction[]> = of([]);
+  
+  private routeSubscription?: Subscription;
+  private dataSubscription?: Subscription;
+  private chartSubscription?: Subscription;
   
   displayedColumns: string[] = ['name', 'amount', 'currentValue', 'profitLoss', 'date'];
   transactionColumns: string[] = ['type', 'amount', 'date', 'notes'];
@@ -153,35 +154,29 @@ export class InvestmentDetailComponent implements OnInit {
   ) {}
 
   ngOnInit(): void {
-    this.route.params.subscribe(params => {
+    this.routeSubscription = this.route.params.subscribe(params => {
       this.category = params['category'] as InvestmentCategory;
       this.loadData();
       this.loadChartData(this.selectedPeriod);
     });
-    
-    // Subscribe to observables to trigger data loading
-    this.investments$.subscribe();
-    this.transactions$.subscribe();
+  }
+
+  ngOnDestroy(): void {
+    this.routeSubscription?.unsubscribe();
+    this.dataSubscription?.unsubscribe();
+    this.chartSubscription?.unsubscribe();
   }
 
   private loadData(): void {
-    this.investments$ = this.investmentService.getInvestmentsByCategory(this.category).pipe(
-      tap(investments => {
-        this.investmentsDataSource.data = investments;
-      }),
-      catchError((error: any) => {
-        console.error('Error loading investments:', error);
-        this.showError('Failed to load investments. Please try again.');
-        
-        if (error.message?.includes('Unauthorized') || error.message?.includes('log in')) {
-          this.router.navigate(['/login']);
-        }
-        
-        this.investmentsDataSource.data = [];
-        return of([]);
-      })
-    );
-    
+    // Clean up previous data subscriptions
+    this.dataSubscription?.unsubscribe();
+    this.dataSubscription = new Subscription();
+
+    // Reset current data sources
+    this.investmentsDataSource.data = [];
+    this.transactionsDataSource.data = [];
+
+    // Load category summary
     this.categorySummary$ = this.investmentService.getCategorySummary(this.category).pipe(
       catchError((error: any) => {
         console.error('Error loading category summary:', error);
@@ -195,33 +190,80 @@ export class InvestmentDetailComponent implements OnInit {
         });
       })
     );
-    
-    this.transactions$ = this.investmentService.getTransactionsByCategory(this.category).pipe(
-      tap(transactions => {
+
+    // Load investments/loans
+    const investmentsSub = this.investmentService.getInvestmentsByCategory(this.category).subscribe({
+      next: (investments) => {
+        this.investmentsDataSource.data = investments;
+      },
+      error: (error: any) => {
+        console.error('Error loading investments:', error);
+        this.showError('Failed to load investments. Please try again.');
+        
+        if (error.message?.includes('Unauthorized') || error.message?.includes('log in')) {
+          this.router.navigate(['/login']);
+        }
+        
+        this.investmentsDataSource.data = [];
+      }
+    });
+    this.dataSubscription.add(investmentsSub);
+
+    // Load transactions
+    const transactionsSub = this.investmentService.getTransactionsByCategory(this.category).subscribe({
+      next: (transactions) => {
         this.transactionsDataSource.data = transactions;
-      }),
-      catchError((error: any) => {
+      },
+      error: (error: any) => {
         console.error('Error loading transactions:', error);
         this.transactionsDataSource.data = [];
-        return of([]);
-      })
-    );
+      }
+    });
+    this.dataSubscription.add(transactionsSub);
   }
 
   private loadChartData(period: ChartPeriod): void {
-    this.investmentService.getChartData(this.category, period).subscribe({
+    this.chartSubscription?.unsubscribe();
+    this.chartSubscription = this.investmentService.getChartData(this.category, period).subscribe({
       next: (data: ChartData) => {
-        this.lineChartData.labels = data.labels;
-        this.lineChartData.datasets[0].data = data.values;
+        this.lineChartData = {
+          labels: data.labels || [],
+          datasets: [
+            {
+              data: data.values || [],
+              label: 'Portfolio Value',
+              fill: true,
+              tension: 0.4,
+              borderColor: '#2196f3',
+              backgroundColor: 'rgba(33, 150, 243, 0.1)',
+              pointBackgroundColor: '#2196f3',
+              pointBorderColor: '#fff',
+              pointHoverBackgroundColor: '#fff',
+              pointHoverBorderColor: '#2196f3',
+            }
+          ]
+        };
         this.chart?.update();
       },
       error: (error: any) => {
         console.error('Error loading chart data:', error);
-        this.showError('Failed to load chart data.');
-        
-        // Set empty chart data
-        this.lineChartData.labels = [];
-        this.lineChartData.datasets[0].data = [];
+        this.lineChartData = {
+          labels: [],
+          datasets: [
+            {
+              data: [],
+              label: 'Portfolio Value',
+              fill: true,
+              tension: 0.4,
+              borderColor: '#2196f3',
+              backgroundColor: 'rgba(33, 150, 243, 0.1)',
+              pointBackgroundColor: '#2196f3',
+              pointBorderColor: '#fff',
+              pointHoverBackgroundColor: '#fff',
+              pointHoverBorderColor: '#2196f3',
+            }
+          ]
+        };
         this.chart?.update();
       }
     });

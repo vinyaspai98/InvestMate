@@ -82,8 +82,8 @@
   <!-- Data Tables -->
   <div class="tables-section">
     <mat-tab-group>
-      <!-- Investments Tab -->
-      <mat-tab label="Investments">
+      <!-- Investments / Loans Tab -->
+      <mat-tab [label]="category === 'loans' ? 'Loans' : 'Investments'">
         <div class="table-container">
           <mat-card>
             <mat-card-header>
@@ -93,7 +93,7 @@
               <table mat-table [dataSource]="investmentsDataSource" class="investments-table">
                 <!-- Name Column -->
                 <ng-container matColumnDef="name">
-                  <th mat-header-cell *matHeaderCellDef>Name</th>
+                  <th mat-header-cell *matHeaderCellDef>{{ category === 'loans' ? 'Loan Name' : 'Name' }}</th>
                   <td mat-cell *matCellDef="let investment">
                     <div class="investment-name">
                       <strong>{{ investment.name }}</strong>
@@ -124,7 +124,7 @@
 
                 <!-- Profit/Loss Column -->
                 <ng-container matColumnDef="profitLoss">
-                  <th mat-header-cell *matHeaderCellDef>P&L</th>
+                  <th mat-header-cell *matHeaderCellDef>{{ category === 'loans' ? 'Paid Off' : 'P&L' }}</th>
                   <td mat-cell *matCellDef="let investment">
                     <div class="profit-loss-cell">
                       <span [ngClass]="{'positive': isPositive(calculateProfitLoss(investment)), 'negative': !isPositive(calculateProfitLoss(investment))}">
@@ -140,7 +140,7 @@
 
                 <!-- Date Column -->
                 <ng-container matColumnDef="date">
-                  <th mat-header-cell *matHeaderCellDef>Date</th>
+                  <th mat-header-cell *matHeaderCellDef>{{ category === 'loans' ? 'Start Date' : 'Date' }}</th>
                   <td mat-cell *matCellDef="let investment">
                     {{ investment.date | date:'shortDate' }}
                   </td>
@@ -152,7 +152,7 @@
 
               <div class="no-data" *ngIf="investmentsDataSource.data.length === 0">
                 <mat-icon>info</mat-icon>
-                <span>No investments found for this category</span>
+                <span>No {{ category === 'loans' ? 'loans' : 'investments' }} found for this category</span>
               </div>
             </mat-card-content>
           </mat-card>

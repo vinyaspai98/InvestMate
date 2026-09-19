@@ -27,8 +27,8 @@
     <!-- Navigation Menu -->
     <mat-nav-list class="nav-list">
       <ng-container *ngFor="let item of navigationItems">
-        <a mat-list-item [routerLink]="item.route" [class.active]="item.active" (click)="onNavigate(item.route)"
-          class="nav-item">
+        <a mat-list-item [routerLink]="item.route" routerLinkActive="active" [routerLinkActiveOptions]="{exact: true}"
+          (click)="onNavigate(item.route)" class="nav-item">
           <mat-icon matListItemIcon>{{ item.icon }}</mat-icon>
           <span matListItemTitle>{{ item.label }}</span>
         </a>
