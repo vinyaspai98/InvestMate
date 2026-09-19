@@ -107,6 +107,7 @@ func main() {
 			// Investment routes
 			investments := protected.Group("/investments")
 			{
+				investments.GET("", investmentHandler.GetAllInvestments)
 				// Category-based routes (should come first)
 				investments.GET("/category/:category", investmentHandler.GetInvestmentsByCategory)
 				investments.GET("/category/:category/summary", investmentHandler.GetCategorySummary)
@@ -121,10 +122,12 @@ func main() {
 			// Loan routes
 			loans := protected.Group("/loans")
 			{
+				loans.GET("", loanHandler.GetAllLoans)
 				loans.GET("/", loanHandler.GetAllLoans)
 				loans.GET("/summary", loanHandler.GetLoanSummary)
 				loans.GET("/:id", loanHandler.GetLoan)
 				loans.POST("", loanHandler.CreateLoan)
+				loans.POST("/", loanHandler.CreateLoan)
 				loans.PUT("/:id", loanHandler.UpdateLoan)
 				loans.DELETE("/:id", loanHandler.DeleteLoan)
 			}
@@ -132,9 +135,11 @@ func main() {
 			// Transaction routes
 			transactions := protected.Group("/transactions")
 			{
+				transactions.GET("", transactionHandler.GetAllTransactions)
 				transactions.GET("/", transactionHandler.GetAllTransactions)
 				transactions.GET("/category/:category", transactionHandler.GetTransactionsByCategory)
 				transactions.GET("/related/:relatedId", transactionHandler.GetTransactionsByRelatedID)
+				transactions.POST("", transactionHandler.CreateTransaction)
 				transactions.POST("/", transactionHandler.CreateTransaction)
 			}
 

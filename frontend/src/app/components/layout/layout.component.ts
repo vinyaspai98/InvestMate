@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { RouterModule, Router } from '@angular/router';
 import { MatSidenavModule } from '@angular/material/sidenav';
@@ -9,7 +9,7 @@ import { MatListModule } from '@angular/material/list';
 import { MatMenuModule } from '@angular/material/menu';
 import { MatDividerModule } from '@angular/material/divider';
 import { BreakpointObserver, Breakpoints } from '@angular/cdk/layout';
-import { Observable } from 'rxjs';
+import { Observable, Subscription } from 'rxjs';
 import { map, shareReplay } from 'rxjs/operators';
 import { AuthService } from '../../services/auth.service';
 import { ThemeService } from '../../services/theme.service';
@@ -32,10 +32,11 @@ import { User } from '../../models/user.model';
   templateUrl: './layout.component.html',
   styleUrls: ['./layout.component.scss']
 })
-export class LayoutComponent implements OnInit {
+export class LayoutComponent implements OnInit, OnDestroy {
   user$: Observable<User | null>;
   currentUser: User | null = null;
   isHandset$: Observable<boolean>;
+  private userSubscription?: Subscription;
 
   navigationItems = [
     {
@@ -103,9 +104,13 @@ export class LayoutComponent implements OnInit {
   }
 
   ngOnInit(): void {
-    this.user$.subscribe(user => {
+    this.userSubscription = this.user$.subscribe(user => {
       this.currentUser = user;
     });
+  }
+
+  ngOnDestroy(): void {
+    this.userSubscription?.unsubscribe();
   }
 
   onNavigate(route: string): void {

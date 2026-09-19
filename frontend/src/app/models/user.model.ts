@@ -1,23 +1,19 @@
-export interface User {
-  id: string;
-  email: string;
-  name: string;
-  contact?: string;
-  preferences: UserPreferences;
+export interface NotificationPreferences {
+  email: boolean;
+  push: boolean;
 }
 
 export interface UserPreferences {
   currency: string;
   theme: 'light' | 'dark';
-  notifications: boolean;
+  notifications: boolean | NotificationPreferences;
 }
 
-export interface AuthRequest {
+export interface User {
+  id: string;
   email: string;
-  password: string;
-}
-
-export interface SignupRequest extends AuthRequest {
   name: string;
-  confirmPassword: string;
+  phoneNumber?: string;
+  contact?: string; // compatibility alias for phoneNumber
+  preferences: UserPreferences;
 }

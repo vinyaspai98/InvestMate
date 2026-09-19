@@ -1,5 +1,6 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, OnDestroy } from '@angular/core';
 import { CommonModule } from '@angular/common';
+import { Subscription } from 'rxjs';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
 import { MatCardModule } from '@angular/material/card';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -386,12 +387,12 @@ import { User } from '../../models/user.model';
     }
   `]
 })
-export class ProfileComponent implements OnInit {
+export class ProfileComponent implements OnInit, OnDestroy {
   profileForm: FormGroup;
   preferencesForm: FormGroup;
-  passwordForm: FormGroup;
   currentUser: User | null = null;
   isSyncing = false;
+  private userSubscription?: Subscription;
 
   constructor(
     private fb: FormBuilder,
@@ -411,40 +412,40 @@ export class ProfileComponent implements OnInit {
       darkMode: [false],
       notifications: [true]
     });
-
-    this.passwordForm = this.fb.group({
-      currentPassword: ['', [Validators.required]],
-      newPassword: ['', [Validators.required, Validators.minLength(6)]],
-      confirmPassword: ['', [Validators.required]]
-    });
   }
 
   ngOnInit(): void {
-    this.authService.currentUser$.subscribe(user => {
+    this.userSubscription = this.authService.currentUser$.subscribe(user => {
       if (user) {
         this.currentUser = user;
         this.profileForm.patchValue({
           name: user.name,
           email: user.email,
-          contact: user.contact || ''
+          contact: user.phoneNumber || user.contact || ''
         });
+
+        const notificationsVal = typeof user.preferences?.notifications === 'boolean'
+          ? user.preferences.notifications
+          : !!user.preferences?.notifications?.email;
+
         this.preferencesForm.patchValue({
-          currency: user.preferences.currency,
-          darkMode: user.preferences.theme === 'dark',
-          notifications: user.preferences.notifications
+          currency: user.preferences?.currency || 'INR',
+          darkMode: user.preferences?.theme === 'dark',
+          notifications: notificationsVal
         });
       }
     });
   }
 
-  onUpdateProfile(): void {
-    if (this.profileForm.valid && this.currentUser) {
-      const updatedUser = {
-        ...this.currentUser,
-        ...this.profileForm.value
-      };
+  ngOnDestroy(): void {
+    this.userSubscription?.unsubscribe();
+  }
 
-      this.authService.updateUser(updatedUser).subscribe({
+  onUpdateProfile(): void {
+    if (this.profileForm.valid) {
+      const { name, contact } = this.profileForm.value;
+
+      this.authService.updateUserProfile({ name, phoneNumber: contact }).subscribe({
         next: () => {
           this.snackBar.open('Profile updated successfully!', 'Close', { duration: 3000 });
         },
@@ -456,45 +457,37 @@ export class ProfileComponent implements OnInit {
   }
 
   onUpdatePreferences(): void {
-    if (this.currentUser) {
-      const updatedUser = {
-        ...this.currentUser,
-        preferences: {
-          ...this.currentUser.preferences,
-          currency: this.preferencesForm.get('currency')?.value,
-          notifications: this.preferencesForm.get('notifications')?.value
-        }
-      };
+    const currency = this.preferencesForm.get('currency')?.value;
+    const notificationsEnabled = !!this.preferencesForm.get('notifications')?.value;
+    const isDark = !!this.preferencesForm.get('darkMode')?.value;
 
-      this.authService.updateUser(updatedUser).subscribe({
-        next: () => {
-          this.snackBar.open('Preferences saved!', 'Close', { duration: 3000 });
-        },
-        error: () => {
-          this.snackBar.open('Failed to save preferences.', 'Close', { duration: 3000 });
-        }
-      });
-    }
+    this.authService.updateUserPreferences({
+      currency,
+      theme: isDark ? 'dark' : 'light',
+      notifications: { email: notificationsEnabled, push: false }
+    }).subscribe({
+      next: () => {
+        this.snackBar.open('Preferences saved!', 'Close', { duration: 3000 });
+      },
+      error: () => {
+        this.snackBar.open('Failed to save preferences.', 'Close', { duration: 3000 });
+      }
+    });
   }
 
   onThemeToggle(event: any): void {
     this.themeService.setDarkTheme(event.checked);
   }
 
-  onChangePassword(): void {
-    // Password change removed - using Google OAuth
-    this.snackBar.open('Password management is handled by Google.', 'Close', { duration: 3000 });
-  }
-
   onSyncGmail(): void {
     this.isSyncing = true;
 
     this.gmailService.syncGmail().subscribe({
-      next: (response) => {
+      next: () => {
         this.isSyncing = false;
         this.snackBar.open('You are all caught up!', 'Close', { duration: 3000 });
       },
-      error: (error) => {
+      error: () => {
         this.isSyncing = false;
         this.snackBar.open('Failed to sync Gmail. Please try again.', 'Close', { duration: 5000 });
       }

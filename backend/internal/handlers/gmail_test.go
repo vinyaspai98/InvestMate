@@ -167,5 +167,24 @@ func TestFetchMutualFundNAV(t *testing.T) {
 	}
 }
 
+func TestStripHTML(t *testing.T) {
+	h := &GmailHandler{}
+	rawHTML := `<html><body>
+		<h1>Transaction Alert</h1>
+		<p>You have bought <b>10</b> shares of <i>RELIANCE</i> at price &#8377; 2,500.00 &amp; credited.</p>
+	</body></html>`
 
-
+	plain := h.stripHTML(rawHTML)
+	if !strings.Contains(plain, "Transaction Alert") {
+		t.Errorf("expected plain text to contain 'Transaction Alert', got %q", plain)
+	}
+	if !strings.Contains(plain, "10 shares of RELIANCE") {
+		t.Errorf("expected plain text to contain '10 shares of RELIANCE', got %q", plain)
+	}
+	if !strings.Contains(plain, "&") {
+		t.Errorf("expected HTML entity '&amp;' to be decoded to '&', got %q", plain)
+	}
+	if strings.Contains(plain, "<html>") || strings.Contains(plain, "</b>") {
+		t.Errorf("expected no HTML tags in stripped output, got %q", plain)
+	}
+}

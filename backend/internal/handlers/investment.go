@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"net/http"
+	"sort"
 	"time"
 
 	"investmate-backend/internal/models"
@@ -23,6 +24,23 @@ func NewInvestmentHandler(firestoreClient *firestore.Client) *InvestmentHandler 
 		firestoreClient: firestoreClient,
 		validator:       validator.New(),
 	}
+}
+
+// GetAllInvestments gets all investments for the authenticated user
+func (h *InvestmentHandler) GetAllInvestments(c *gin.Context) {
+	userID := c.GetString("userID")
+	if userID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "User not authenticated"})
+		return
+	}
+
+	investments, err := h.getAllUserInvestments(c.Request.Context(), userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get investments"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"investments": investments})
 }
 
 // GetInvestmentsByCategory gets investments filtered by category
@@ -278,14 +296,41 @@ func (h *InvestmentHandler) getInvestmentsByCategory(ctx context.Context, userID
 	}
 
 	// Sort by createdAt in memory (descending)
-	// This avoids needing a Firestore composite index
-	// for i := 0; i < len(investments)-1; i++ {
-	// 	for j := i + 1; j < len(investments); j++ {
-	// 		if investments[i].CreatedAt.Before(investments[j].CreatedAt) {
-	// 			investments[i], investments[j] = investments[j], investments[i]
-	// 		}
-	// 	}
-	// }
+	sort.Slice(investments, func(i, j int) bool {
+		return investments[i].CreatedAt.After(investments[j].CreatedAt)
+	})
+
+	return investments, nil
+}
+
+func (h *InvestmentHandler) getAllUserInvestments(ctx context.Context, userID string) ([]models.Investment, error) {
+	var investments []models.Investment
+
+	iter := h.firestoreClient.Collection("users").Doc(userID).Collection("investments").
+		Where("isActive", "==", true).
+		Documents(ctx)
+
+	for {
+		doc, err := iter.Next()
+		if err == iterator.Done {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+
+		var investment models.Investment
+		if err := doc.DataTo(&investment); err != nil {
+			return nil, err
+		}
+		investment.ID = doc.Ref.ID
+		investments = append(investments, investment)
+	}
+
+	// Sort by createdAt in memory (descending)
+	sort.Slice(investments, func(i, j int) bool {
+		return investments[i].CreatedAt.After(investments[j].CreatedAt)
+	})
 
 	return investments, nil
 }

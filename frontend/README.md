@@ -76,7 +76,6 @@ frontend/
 │   │   │   ├── auth.service.ts          # Firebase Auth & Google Sign-In service
 │   │   │   ├── gmail.service.ts         # Backend Gmail sync trigger service
 │   │   │   ├── investment.service.ts    # REST API client for investments & charts
-│   │   │   ├── mock-data.service.ts     # Offline mock data fallback
 │   │   │   └── theme.service.ts         # Dark/Light mode theme state management
 │   │   ├── app.config.ts                # Application providers & Firebase initialization
 │   │   ├── app.routes.ts                # Route definitions with guards

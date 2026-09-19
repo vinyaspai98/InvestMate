@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"net/http"
+	"sort"
 	"time"
 
 	"investmate-backend/internal/models"
@@ -254,13 +255,9 @@ func (h *LoanHandler) getAllUserLoans(ctx context.Context, userID string) ([]mod
 	}
 
 	// Sort by createdAt in memory (descending)
-	for i := 0; i < len(loans)-1; i++ {
-		for j := i + 1; j < len(loans); j++ {
-			if loans[i].CreatedAt.Before(loans[j].CreatedAt) {
-				loans[i], loans[j] = loans[j], loans[i]
-			}
-		}
-	}
+	sort.Slice(loans, func(i, j int) bool {
+		return loans[i].CreatedAt.After(loans[j].CreatedAt)
+	})
 
 	return loans, nil
 }

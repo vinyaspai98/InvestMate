@@ -9,7 +9,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatDatepickerModule } from '@angular/material/datepicker';
 import { MatNativeDateModule } from '@angular/material/core';
 import { MatIconModule } from '@angular/material/icon';
-import { InvestmentCategory, TransactionType } from '../../models/investment.model';
+import { InvestmentCategory } from '../../models/investment.model';
 
 export interface InvestmentDialogData {
   category: InvestmentCategory;

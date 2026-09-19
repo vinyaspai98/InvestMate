@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"net/http"
+	"sort"
 	"time"
 
 	"investmate-backend/internal/models"
@@ -171,13 +172,9 @@ func (h *TransactionHandler) getTransactionsByCategory(ctx context.Context, user
 	}
 
 	// Sort by date in memory (descending)
-	for i := 0; i < len(transactions)-1; i++ {
-		for j := i + 1; j < len(transactions); j++ {
-			if transactions[i].Date.Before(transactions[j].Date) {
-				transactions[i], transactions[j] = transactions[j], transactions[i]
-			}
-		}
-	}
+	sort.Slice(transactions, func(i, j int) bool {
+		return transactions[i].Date.After(transactions[j].Date)
+	})
 
 	return transactions, nil
 }
@@ -208,13 +205,9 @@ func (h *TransactionHandler) getTransactionsByRelatedID(ctx context.Context, use
 	}
 
 	// Sort by date in memory (descending)
-	for i := 0; i < len(transactions)-1; i++ {
-		for j := i + 1; j < len(transactions); j++ {
-			if transactions[i].Date.Before(transactions[j].Date) {
-				transactions[i], transactions[j] = transactions[j], transactions[i]
-			}
-		}
-	}
+	sort.Slice(transactions, func(i, j int) bool {
+		return transactions[i].Date.After(transactions[j].Date)
+	})
 
 	return transactions, nil
 }
@@ -244,13 +237,9 @@ func (h *TransactionHandler) getAllUserTransactions(ctx context.Context, userID 
 	}
 
 	// Sort by date in memory (descending)
-	for i := 0; i < len(transactions)-1; i++ {
-		for j := i + 1; j < len(transactions); j++ {
-			if transactions[i].Date.Before(transactions[j].Date) {
-				transactions[i], transactions[j] = transactions[j], transactions[i]
-			}
-		}
-	}
+	sort.Slice(transactions, func(i, j int) bool {
+		return transactions[i].Date.After(transactions[j].Date)
+	})
 
 	return transactions, nil
 }

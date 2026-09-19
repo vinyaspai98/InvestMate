@@ -268,19 +268,31 @@ export class InvestmentService {
   // ...existing transaction, loan, and chart methods...
   // Transaction APIs
   getTransactions(): Observable<Transaction[]> {
-    return this.http.get<Transaction[]>(`${this.apiUrl}/transactions`).pipe(
+    return this.http.get<any>(`${this.apiUrl}/transactions`).pipe(
+      map(response => {
+        const txs = response?.transactions || response || [];
+        return Array.isArray(txs) ? txs : [];
+      }),
       catchError(this.handleError)
     );
   }
 
   getTransactionsByCategory(category: InvestmentCategory): Observable<Transaction[]> {
-    return this.http.get<Transaction[]>(`${this.apiUrl}/transactions/category/${category}`).pipe(
+    return this.http.get<any>(`${this.apiUrl}/transactions/category/${category}`).pipe(
+      map(response => {
+        const txs = response?.transactions || response || [];
+        return Array.isArray(txs) ? txs : [];
+      }),
       catchError(this.handleError)
     );
   }
 
   getTransactionsByInvestment(investmentId: string): Observable<Transaction[]> {
-    return this.http.get<Transaction[]>(`${this.apiUrl}/transactions/related/${investmentId}`).pipe(
+    return this.http.get<any>(`${this.apiUrl}/transactions/related/${investmentId}`).pipe(
+      map(response => {
+        const txs = response?.transactions || response || [];
+        return Array.isArray(txs) ? txs : [];
+      }),
       catchError(this.handleError)
     );
   }
@@ -322,8 +334,13 @@ export class InvestmentService {
 
   // Loan APIs
   getLoans(): Observable<Investment[]> {
-    return this.http.get<any[]>(`${this.apiUrl}/loans`).pipe(
-      map(loans => loans.map(loan => this.transformLoanFromBackendFormat(loan))),
+    return this.http.get<any>(`${this.apiUrl}/loans`).pipe(
+      map(response => {
+        const loans = response?.loans || response || [];
+        return Array.isArray(loans)
+          ? loans.map((loan: any) => this.transformLoanFromBackendFormat(loan))
+          : [];
+      }),
       catchError(this.handleError)
     );
   }

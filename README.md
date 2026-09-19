@@ -82,7 +82,6 @@ InvestMate/
 │   │   │   │   ├── auth.service.ts        # Firebase Auth & Google Sign-In
 │   │   │   │   ├── gmail.service.ts       # Gmail sync trigger service
 │   │   │   │   ├── investment.service.ts  # REST API client for investments & charts
-│   │   │   │   ├── mock-data.service.ts   # Offline mock data fallback
 │   │   │   │   └── theme.service.ts       # Dark/Light theme state
 │   │   │   ├── app.config.ts              # Firebase & HTTP providers
 │   │   │   └── app.routes.ts              # Application route declarations

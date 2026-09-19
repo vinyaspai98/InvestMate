@@ -340,12 +340,21 @@ func (h *GmailHandler) extractEmailBody(email *gmail.Message) string {
 	return ""
 }
 
+var (
+	whitespaceRegex        = regexp.MustCompile(`[ \t]+`)
+	multiNewlineRegex      = regexp.MustCompile(`(\n\s*){3,}`)
+	mfTickerCleanRegex     = regexp.MustCompile(`[^A-Z0-9]+`)
+	mfPrefixRegex          = regexp.MustCompile(`(?i)^[^-]+(?:MF|MUTUAL\s+FUND)\s*-\s*`)
+	mfPlanSuffixRegex      = regexp.MustCompile(`(?i)(?:\s*[-/]\s*|\s+)\b(?:DIRECT|REGULAR|PLAN|PL|OPT|OPTION)\b.*$`)
+	mfGrowthSuffixRegex    = regexp.MustCompile(`(?i)\s*[-/]\s*GROWTH\b.*$`)
+	stockEquitySuffixRegex = regexp.MustCompile(`(?i)\s*-\s*(?:NEW\s+)?EQUITY(?:\s+SHARES)?.*$`)
+)
+
 // stripHTML converts HTML content to plain text by walking the parse tree.
 func (h *GmailHandler) stripHTML(body string) string {
 	doc, err := html.Parse(strings.NewReader(body))
 	if err != nil {
-		// Fallback: crude tag removal
-		return regexp.MustCompile(`<[^>]+>`).ReplaceAllString(body, " ")
+		return strings.TrimSpace(body)
 	}
 	var buf strings.Builder
 	var walk func(*html.Node)
@@ -361,8 +370,8 @@ func (h *GmailHandler) stripHTML(body string) string {
 	walk(doc)
 	text := buf.String()
 	// Collapse whitespace
-	text = regexp.MustCompile(`[ \t]+`).ReplaceAllString(text, " ")
-	text = regexp.MustCompile(`(\n\s*){3,}`).ReplaceAllString(text, "\n\n")
+	text = whitespaceRegex.ReplaceAllString(text, " ")
+	text = multiNewlineRegex.ReplaceAllString(text, "\n\n")
 	// Decode common HTML entities
 	text = strings.ReplaceAll(text, "&amp;", "&")
 	text = strings.ReplaceAll(text, "&lt;", "<")
@@ -668,19 +677,6 @@ func (h *GmailHandler) parseEmailContent(ctx context.Context, email *gmail.Messa
 // ---------------------------------------------------------------------------
 // Market price fetchers
 // ---------------------------------------------------------------------------
-
-// fetchMarketPrice is the unified dispatcher for retrieving historical prices.
-// Returns 0 on any error — callers must handle the 0 case gracefully.
-func (h *GmailHandler) fetchMarketPrice(ctx context.Context, symbol, date string, isMF bool) float64 {
-	if isMF {
-		price := h.fetchMutualFundNAV(ctx, symbol, "", date)
-		log.Printf("MF NAV for %s on %s: %.4f", symbol, date, price)
-		return price
-	}
-	price := h.fetchStockPrice(ctx, symbol, date)
-	log.Printf("Stock price for %s on %s: %.4f", symbol, date, price)
-	return price
-}
 
 // fetchStockPrice fetches the closing price for the given ticker symbol on the given date (YYYY-MM-DD).
 // It queries Yahoo Finance (.NS / .BO) first for free full historical data, with fallback to Alpha Vantage.
@@ -1009,7 +1005,7 @@ func generateMFTicker(name string) string {
 	name = strings.ReplaceAll(name, "-GROWTH", "")
 	name = strings.ReplaceAll(name, " GROWTH", "")
 	name = strings.ReplaceAll(name, " FUND", "")
-	name = regexp.MustCompile(`[^A-Z0-9]+`).ReplaceAllString(name, "_")
+	name = mfTickerCleanRegex.ReplaceAllString(name, "_")
 	name = strings.Trim(name, "_")
 	if len(name) > 20 {
 		name = name[:20]
@@ -1275,18 +1271,14 @@ func cleanInvestmentName(name string, isMutualFund bool) string {
 		// Remove leading AMC prefix ending with MF or MUTUAL FUND before a dash
 		// e.g. "MIRAE ASSET MF-MIRAE ASSET GOLD ETF" -> "MIRAE ASSET GOLD ETF"
 		// e.g. "MOTILAL OSWAL MF-MOTILAL OSWAL MIDCAP 30 FUND" -> "MOTILAL OSWAL MIDCAP 30 FUND"
-		mfPrefixRegex := regexp.MustCompile(`(?i)^[^-]+(?:MF|MUTUAL\s+FUND)\s*-\s*`)
 		name = mfPrefixRegex.ReplaceAllString(name, "")
 
 		// Clean common suffixes: Direct, Regular, Plan, Growth, Option
-		planRegex := regexp.MustCompile(`(?i)(?:\s*[-/]\s*|\s+)\b(?:DIRECT|REGULAR|PLAN|PL|OPT|OPTION)\b.*$`)
-		name = planRegex.ReplaceAllString(name, "")
-		growthRegex := regexp.MustCompile(`(?i)\s*[-/]\s*GROWTH\b.*$`)
-		name = growthRegex.ReplaceAllString(name, "")
+		name = mfPlanSuffixRegex.ReplaceAllString(name, "")
+		name = mfGrowthSuffixRegex.ReplaceAllString(name, "")
 	} else {
 		// Remove " - EQUITY SHARES" / " - NEW EQUITY SHARES" etc.
-		stockRegex := regexp.MustCompile(`(?i)\s*-\s*(?:NEW\s+)?EQUITY(?:\s+SHARES)?.*$`)
-		name = stockRegex.ReplaceAllString(name, "")
+		name = stockEquitySuffixRegex.ReplaceAllString(name, "")
 	}
 
 	return strings.TrimSpace(name)

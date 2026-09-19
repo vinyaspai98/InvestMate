@@ -11,7 +11,7 @@ import {
   User as FirebaseUser,
   user
 } from '@angular/fire/auth';
-import { User, AuthRequest, SignupRequest } from '../models/user.model';
+import { User } from '../models/user.model';
 import { environment } from '../../environments/environment';
 
 @Injectable({
@@ -109,17 +109,6 @@ export class AuthService {
     );
   }
 
-  // Legacy methods kept for backward compatibility but not used
-  login(authRequest: AuthRequest): Observable<User> {
-    // Redirect to Google Sign-In
-    return this.loginWithGoogle();
-  }
-
-  signup(signupRequest: SignupRequest): Observable<User> {
-    // Redirect to Google Sign-In
-    return this.loginWithGoogle();
-  }
-
   logout(): Observable<void> {
     return from(signOut(this.auth)).pipe(
       tap(() => this.currentUserSubject.next(null)),
@@ -138,6 +127,38 @@ export class AuthService {
     return this.currentUserSubject.value;
   }
 
+  updateUserProfile(profile: { name?: string; phoneNumber?: string }): Observable<User> {
+    return this.http.put<{ user: User }>(`${this.apiUrl}/users/profile`, profile).pipe(
+      map(res => res.user),
+      tap(updatedUser => {
+        const current = this.currentUserSubject.value;
+        this.currentUserSubject.next({ ...current, ...updatedUser });
+      }),
+      catchError(error => {
+        console.error('Update profile error:', error);
+        return throwError(() => new Error('Failed to update profile. Please try again.'));
+      })
+    );
+  }
+
+  updateUserPreferences(preferences: {
+    currency?: string;
+    theme?: string;
+    notifications?: { email: boolean; push: boolean };
+  }): Observable<User> {
+    return this.http.put<{ user: User }>(`${this.apiUrl}/users/preferences`, preferences).pipe(
+      map(res => res.user),
+      tap(updatedUser => {
+        const current = this.currentUserSubject.value;
+        this.currentUserSubject.next({ ...current, ...updatedUser });
+      }),
+      catchError(error => {
+        console.error('Update preferences error:', error);
+        return throwError(() => new Error('Failed to update preferences. Please try again.'));
+      })
+    );
+  }
+
   updateUser(user: User): Observable<User> {
     const firebaseUser = this.auth.currentUser;
 
@@ -148,14 +169,11 @@ export class AuthService {
     return from(updateProfile(firebaseUser, {
       displayName: user.name
     })).pipe(
-      map(() => {
-        const updatedUser: User = {
-          ...user,
-          id: firebaseUser.uid,
-          email: firebaseUser.email || user.email
-        };
-        this.currentUserSubject.next(updatedUser);
-        return updatedUser;
+      switchMap(() => {
+        return this.updateUserProfile({
+          name: user.name,
+          phoneNumber: user.phoneNumber || user.contact
+        });
       }),
       catchError(error => {
         console.error('Update user error:', error);
@@ -163,8 +181,6 @@ export class AuthService {
       })
     );
   }
-
-  // Password methods removed - using Google OAuth
 
   // Helper method to map Firebase User to our User model
   private async mapFirebaseUserToUser(firebaseUser: FirebaseUser): Promise<User> {
@@ -175,7 +191,10 @@ export class AuthService {
       preferences: {
         currency: 'INR',
         theme: 'light',
-        notifications: true
+        notifications: {
+          email: true,
+          push: false
+        }
       }
     };
   }

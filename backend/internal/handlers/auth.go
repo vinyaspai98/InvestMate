@@ -101,25 +101,21 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 	}
 
 	// Build update data
-	updateData := map[string]interface{}{
-		"updatedAt": time.Now(),
+	updates := []firestore.Update{
+		{Path: "updatedAt", Value: time.Now()},
 	}
 
 	if req.Name != nil {
-		updateData["name"] = *req.Name
+		updates = append(updates, firestore.Update{Path: "name", Value: *req.Name})
 	}
 
 	if req.PhoneNumber != nil {
-		updateData["phoneNumber"] = *req.PhoneNumber
+		updates = append(updates, firestore.Update{Path: "phoneNumber", Value: *req.PhoneNumber})
 	}
 
 	// Update user profile in Firestore
 	userRef := h.firestoreClient.Collection("users").Doc(userID)
-	_, err := userRef.Update(c.Request.Context(), []firestore.Update{
-		{Path: "name", Value: updateData["name"]},
-		{Path: "phoneNumber", Value: updateData["phoneNumber"]},
-		{Path: "updatedAt", Value: updateData["updatedAt"]},
-	})
+	_, err := userRef.Update(c.Request.Context(), updates)
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update profile"})
