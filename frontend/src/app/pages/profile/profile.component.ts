@@ -1,4 +1,4 @@
-import { Component, OnInit, OnDestroy } from '@angular/core';
+import { Component, OnInit, OnDestroy, ChangeDetectorRef } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { Subscription } from 'rxjs';
 import { FormsModule, ReactiveFormsModule, FormBuilder, FormGroup, Validators } from '@angular/forms';
@@ -14,6 +14,7 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { AuthService } from '../../services/auth.service';
 import { ThemeService } from '../../services/theme.service';
 import { GmailService } from '../../services/gmail.service';
+import { InvestmentService } from '../../services/investment.service';
 import { User } from '../../models/user.model';
 
 @Component({
@@ -131,8 +132,12 @@ import { User } from '../../models/user.model';
               <button mat-raised-button color="primary" (click)="onSyncGmail()" [disabled]="isSyncing">
                 <mat-spinner *ngIf="isSyncing" diameter="20"></mat-spinner>
                 <mat-icon *ngIf="!isSyncing">sync</mat-icon>
-                {{ isSyncing ? 'Syncing...' : 'Sync Gmail' }}
+                {{ isSyncing ? 'Syncing...' : 'Sync Now' }}
               </button>
+            </div>
+            <div *ngIf="lastRefresh" class="last-refresh-info">
+              <mat-icon>schedule</mat-icon>
+              <span>Last Refresh: {{ lastRefresh | date:'h:mm:ss a, MMM d, y' }}</span>
             </div>
           </mat-card-content>
         </mat-card>
@@ -275,6 +280,23 @@ import { User } from '../../models/user.model';
       }
     }
 
+    .last-refresh-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 1rem;
+      font-size: 0.875rem;
+      color: #555;
+      font-weight: 500;
+
+      mat-icon {
+        font-size: 18px;
+        width: 18px;
+        height: 18px;
+        color: #666;
+      }
+    }
+
     // Dark theme
     :host-context(.dark-theme) {
       .page-header {
@@ -317,6 +339,14 @@ import { User } from '../../models/user.model';
         .security-note {
           background: rgba(255, 193, 7, 0.2);
           color: #ffb74d;
+        }
+
+        .last-refresh-info {
+          color: #b0b0b0;
+
+          mat-icon {
+            color: #9e9e9e;
+          }
         }
       }
 
@@ -392,6 +422,7 @@ export class ProfileComponent implements OnInit, OnDestroy {
   preferencesForm: FormGroup;
   currentUser: User | null = null;
   isSyncing = false;
+  lastRefresh: Date | null = null;
   private userSubscription?: Subscription;
 
   constructor(
@@ -399,7 +430,9 @@ export class ProfileComponent implements OnInit, OnDestroy {
     private authService: AuthService,
     public themeService: ThemeService,
     private gmailService: GmailService,
-    private snackBar: MatSnackBar
+    private investmentService: InvestmentService,
+    private snackBar: MatSnackBar,
+    private cdr: ChangeDetectorRef
   ) {
     this.profileForm = this.fb.group({
       name: ['', [Validators.required]],
@@ -418,6 +451,9 @@ export class ProfileComponent implements OnInit, OnDestroy {
     this.userSubscription = this.authService.currentUser$.subscribe(user => {
       if (user) {
         this.currentUser = user;
+        if (user.lastGmailSync && !this.lastRefresh) {
+          this.lastRefresh = new Date(user.lastGmailSync);
+        }
         this.profileForm.patchValue({
           name: user.name,
           email: user.email,
@@ -433,6 +469,7 @@ export class ProfileComponent implements OnInit, OnDestroy {
           darkMode: user.preferences?.theme === 'dark',
           notifications: notificationsVal
         });
+        this.cdr.markForCheck();
       }
     });
   }
@@ -448,9 +485,11 @@ export class ProfileComponent implements OnInit, OnDestroy {
       this.authService.updateUserProfile({ name, phoneNumber: contact }).subscribe({
         next: () => {
           this.snackBar.open('Profile updated successfully!', 'Close', { duration: 3000 });
+          this.cdr.markForCheck();
         },
         error: () => {
           this.snackBar.open('Failed to update profile.', 'Close', { duration: 3000 });
+          this.cdr.markForCheck();
         }
       });
     }
@@ -468,9 +507,11 @@ export class ProfileComponent implements OnInit, OnDestroy {
     }).subscribe({
       next: () => {
         this.snackBar.open('Preferences saved!', 'Close', { duration: 3000 });
+        this.cdr.markForCheck();
       },
       error: () => {
         this.snackBar.open('Failed to save preferences.', 'Close', { duration: 3000 });
+        this.cdr.markForCheck();
       }
     });
   }
@@ -481,15 +522,27 @@ export class ProfileComponent implements OnInit, OnDestroy {
 
   onSyncGmail(): void {
     this.isSyncing = true;
+    this.cdr.detectChanges();
 
     this.gmailService.syncGmail().subscribe({
-      next: () => {
+      next: (response) => {
         this.isSyncing = false;
+        if (response?.lastGmailSync) {
+          this.lastRefresh = new Date(response.lastGmailSync);
+        } else {
+          this.lastRefresh = new Date();
+        }
+        if (this.currentUser) {
+          this.currentUser.lastGmailSync = this.lastRefresh.toISOString();
+        }
+        this.investmentService.clearCache();
         this.snackBar.open('You are all caught up!', 'Close', { duration: 3000 });
+        this.cdr.detectChanges();
       },
       error: () => {
         this.isSyncing = false;
         this.snackBar.open('Failed to sync Gmail. Please try again.', 'Close', { duration: 5000 });
+        this.cdr.detectChanges();
       }
     });
   }

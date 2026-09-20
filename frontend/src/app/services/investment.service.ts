@@ -430,7 +430,7 @@ export class InvestmentService {
   }
 
   // Helper Methods
-  private clearCache(): void {
+  public clearCache(): void {
     this.netWorthCache$ = undefined;
     this.categorySummariesCache$ = undefined;
   }

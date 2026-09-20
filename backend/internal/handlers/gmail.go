@@ -211,9 +211,19 @@ func (h *GmailHandler) SyncGmail(c *gin.Context) {
 	}
 
 	if len(emails) == 0 {
+		now := time.Now()
+		_, err = h.firestoreClient.Collection("users").Doc(userID).Update(c.Request.Context(), []firestore.Update{
+			{Path: "lastGmailSync", Value: now},
+			{Path: "updatedAt", Value: now},
+		})
+		if err != nil {
+			log.Printf("Failed to update last sync timestamp: %v", err)
+		}
+
 		c.JSON(http.StatusOK, gin.H{
-			"message": "No new emails found",
-			"synced":  0,
+			"message":       "No new emails found",
+			"synced":        0,
+			"lastGmailSync": now,
 		})
 		return
 	}
@@ -253,9 +263,10 @@ func (h *GmailHandler) SyncGmail(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message": "Gmail sync completed successfully",
-		"synced":  syncedCount,
-		"total":   len(emails),
+		"message":       "Gmail sync completed successfully",
+		"synced":        syncedCount,
+		"total":         len(emails),
+		"lastGmailSync": now,
 	})
 }
 

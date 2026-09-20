@@ -24,8 +24,8 @@ import { CategorySummary, NetWorth, InvestmentCategory } from '../../models/inve
   styleUrls: ['./dashboard.component.scss']
 })
 export class DashboardComponent implements OnInit {
-  netWorth$: Observable<NetWorth>;
-  categorySummaries$: Observable<CategorySummary[]>;
+  netWorth$!: Observable<NetWorth>;
+  categorySummaries$!: Observable<CategorySummary[]>;
   isLoading = true;
   error: string | null = null;
 
@@ -70,7 +70,17 @@ export class DashboardComponent implements OnInit {
   constructor(
     private investmentService: InvestmentService,
     private router: Router
-  ) {
+  ) {}
+
+  ngOnInit(): void {
+    this.loadDashboardData(true);
+  }
+
+  loadDashboardData(forceRefresh = false): void {
+    if (forceRefresh) {
+      this.investmentService.clearCache();
+    }
+    this.isLoading = true;
     this.netWorth$ = this.investmentService.getNetWorth().pipe(
       tap(() => this.isLoading = false),
       catchError(error => {
@@ -95,10 +105,6 @@ export class DashboardComponent implements OnInit {
         return of([]);
       })
     );
-  }
-
-  ngOnInit(): void {
-    // Component initialization
   }
 
   navigateToCategory(route: string): void {

@@ -6,7 +6,8 @@ import { environment } from '../../environments/environment';
 export interface GmailSyncResponse {
     message: string;
     synced: number;
-    total: number;
+    total?: number;
+    lastGmailSync?: string;
 }
 
 @Injectable({

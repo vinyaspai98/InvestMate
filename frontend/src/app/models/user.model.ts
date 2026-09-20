@@ -16,4 +16,5 @@ export interface User {
   phoneNumber?: string;
   contact?: string; // compatibility alias for phoneNumber
   preferences: UserPreferences;
+  lastGmailSync?: string;
 }
