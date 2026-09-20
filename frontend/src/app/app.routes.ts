@@ -21,6 +21,10 @@ export const routes: Routes = [
         loadComponent: () => import('./pages/dashboard/dashboard.component').then(m => m.DashboardComponent) 
       },
       { 
+        path: 'ai-scanner', 
+        loadComponent: () => import('./pages/ai-scanner/ai-scanner.component').then(m => m.AiScannerComponent) 
+      },
+      { 
         path: 'investments/:category', 
         loadComponent: () => import('./pages/investment-detail/investment-detail.component').then(m => m.InvestmentDetailComponent) 
       },

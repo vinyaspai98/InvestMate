@@ -23,6 +23,23 @@ service cloud.firestore {
       match /transactions/{transactionId} {
         allow read, write: if request.auth != null && request.auth.uid == userId;
       }
+
+      // AI Portfolio Scanner subcollections
+      match /portfolio_scans/{scanId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      match /fifo_tax_lots/{lotId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      match /ai_recommendations/{recId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+
+      match /forecast_cache/{forecastId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
     }
     
     // Deny all other reads and writes

@@ -49,6 +49,7 @@ func main() {
 	transactionHandler := handlers.NewTransactionHandler(firestoreClient)
 	chartHandler := handlers.NewChartHandler(firestoreClient)
 	gmailHandler := handlers.NewGmailHandler(firestoreClient, cfg.GeminiAPIKey, cfg.AlphaVantageAPIKey)
+	aiHandler := handlers.NewAIHandler(firestoreClient, cfg.GeminiAPIKey)
 
 	// Setup Gin router
 	if cfg.Environment == "production" {
@@ -154,6 +155,16 @@ func main() {
 			gmail := protected.Group("/gmail")
 			{
 				gmail.POST("/sync", gmailHandler.SyncGmail)
+			}
+
+			// AI Portfolio Scanner routes
+			ai := protected.Group("/ai")
+			{
+				ai.POST("/scan-cas", aiHandler.ScanCAS)
+				ai.GET("/health-score", aiHandler.GetHealthScore)
+				ai.POST("/recommendations", aiHandler.GetRecommendations)
+				ai.POST("/forecast-profit", aiHandler.ForecastProfit)
+				ai.GET("/monte-carlo", aiHandler.MonteCarlo)
 			}
 		}
 	}

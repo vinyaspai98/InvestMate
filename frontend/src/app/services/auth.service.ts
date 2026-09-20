@@ -2,15 +2,15 @@ import { Injectable, inject } from '@angular/core';
 import { Observable, BehaviorSubject, of, from, throwError } from 'rxjs';
 import { map, catchError, tap, switchMap } from 'rxjs/operators';
 import { HttpClient } from '@angular/common/http';
+import { Auth } from '@angular/fire/auth';
 import {
-  Auth,
   signInWithPopup,
   GoogleAuthProvider,
   signOut,
   updateProfile,
   User as FirebaseUser,
-  user
-} from '@angular/fire/auth';
+  onAuthStateChanged
+} from 'firebase/auth';
 import { User } from '../models/user.model';
 import { environment } from '../../environments/environment';
 
@@ -26,7 +26,7 @@ export class AuthService {
 
   constructor() {
     // Subscribe to Firebase auth state changes
-    user(this.auth).subscribe(firebaseUser => {
+    onAuthStateChanged(this.auth, (firebaseUser) => {
       if (firebaseUser) {
         // Sync with backend on initial load/state change
         this.syncWithBackend(firebaseUser).subscribe({

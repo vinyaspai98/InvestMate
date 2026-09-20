@@ -58,6 +58,12 @@ export class LayoutComponent implements OnInit, OnDestroy {
       active: false
     },
     {
+      label: 'AI Portfolio Scanner',
+      icon: 'auto_awesome',
+      route: '/ai-scanner',
+      active: false
+    },
+    {
       label: 'Fixed Deposits',
       icon: 'savings',
       route: '/investments/fds',
