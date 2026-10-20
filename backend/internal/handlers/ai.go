@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"investmate-backend/internal/models"
+	"investmate-backend/internal/services/gemini"
 	"investmate-backend/internal/services/quant"
 
 	"cloud.google.com/go/firestore"
@@ -426,25 +427,9 @@ func (h *AIHandler) callGeminiForCAS(ctx context.Context, statementText string) 
 		h.geminiAPIKey,
 	)
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(bodyBytes))
+	respBytes, err := gemini.PostWithRetry(ctx, endpoint, bodyBytes)
 	if err != nil {
-		return nil, err
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-
-	resp, err := http.DefaultClient.Do(httpReq)
-	if err != nil {
-		return nil, err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("gemini API returned status %d", resp.StatusCode)
-	}
-
-	respBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("gemini API call failed: %w", err)
 	}
 
 	var geminiResp struct {

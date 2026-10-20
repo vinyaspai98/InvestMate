@@ -2,8 +2,14 @@ package handlers
 
 import (
 	"context"
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"investmate-backend/internal/constants"
+
+	"github.com/gin-gonic/gin"
 )
 
 func TestCleanInvestmentName(t *testing.T) {
@@ -186,5 +192,26 @@ func TestStripHTML(t *testing.T) {
 	}
 	if strings.Contains(plain, "<html>") || strings.Contains(plain, "</b>") {
 		t.Errorf("expected no HTML tags in stripped output, got %q", plain)
+	}
+}
+
+func TestCDSLCASEmailSubjectConstant(t *testing.T) {
+	if constants.CDSLCASEmailSubject != "CDSL Consolidated Account Statement (CAS)" {
+		t.Errorf("unexpected CDSLCASEmailSubject: got %q, want %q", constants.CDSLCASEmailSubject, "CDSL Consolidated Account Statement (CAS)")
+	}
+}
+
+func TestSyncGmail_Unauthenticated(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	h := &GmailHandler{}
+
+	w := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(w)
+	c.Request, _ = http.NewRequest(http.MethodPost, "/api/v1/gmail/sync", nil)
+
+	h.SyncGmail(c)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Errorf("expected status 401 Unauthorized for unauthenticated request, got %d", w.Code)
 	}
 }

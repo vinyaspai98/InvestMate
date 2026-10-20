@@ -4,6 +4,7 @@ import (
 	"context"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	"investmate-backend/internal/models"
@@ -111,6 +112,10 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 
 	if req.PhoneNumber != nil {
 		updates = append(updates, firestore.Update{Path: "phoneNumber", Value: *req.PhoneNumber})
+	}
+
+	if req.PANNumber != nil {
+		updates = append(updates, firestore.Update{Path: "panNumber", Value: strings.ToUpper(strings.TrimSpace(*req.PANNumber))})
 	}
 
 	// Update user profile in Firestore

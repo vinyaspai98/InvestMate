@@ -16,6 +16,9 @@ type User struct {
 	GmailRefreshToken string          `json:"-" firestore:"gmailRefreshToken,omitempty"`                   // OAuth refresh token (not exposed in JSON)
 	GmailTokenExpiry  *time.Time      `json:"-" firestore:"gmailTokenExpiry,omitempty"`                    // Token expiration time
 	LastGmailSync     *time.Time      `json:"lastGmailSync,omitempty" firestore:"lastGmailSync,omitempty"` // Last successful sync
+	LastCASProcessed  *time.Time      `json:"lastCASProcessed,omitempty" firestore:"lastCASProcessed,omitempty"` // Last successful CAS PDF processing
+	CASEffectiveDate  *time.Time      `json:"casEffectiveDate,omitempty" firestore:"casEffectiveDate,omitempty"` // Effective date of holdings extracted from CAS
+	PANNumber         string          `json:"panNumber,omitempty" firestore:"panNumber,omitempty"`         // User's PAN card number (used for CAS PDF decryption)
 }
 
 // UserPreferences represents user settings and preferences
@@ -43,6 +46,7 @@ type VerifyTokenRequest struct {
 type UpdateProfileRequest struct {
 	Name        *string `json:"name,omitempty" validate:"omitempty,min=1"`
 	PhoneNumber *string `json:"phoneNumber,omitempty" validate:"omitempty,min=10"`
+	PANNumber   *string `json:"panNumber,omitempty" validate:"omitempty,len=10,alphanum"`
 }
 
 // UpdatePreferencesRequest represents the user preferences update request

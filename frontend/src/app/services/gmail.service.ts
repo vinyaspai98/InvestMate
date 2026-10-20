@@ -8,6 +8,9 @@ export interface GmailSyncResponse {
     synced: number;
     total?: number;
     lastGmailSync?: string;
+    syncMode?: 'cas_bootstrap' | 'incremental' | 'price_refresh' | 'full_reconcile';
+    casProcessed?: boolean;
+    portfolioEffectiveDate?: string;
 }
 
 @Injectable({

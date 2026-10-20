@@ -67,6 +67,17 @@ import { User } from '../../models/user.model';
                 <mat-icon matSuffix>phone</mat-icon>
               </mat-form-field>
 
+              <mat-form-field appearance="outline" class="full-width">
+                <mat-label>PAN Card Number</mat-label>
+                <input matInput formControlName="panNumber" placeholder="Enter your PAN (e.g. ABCDE1234F)"
+                       style="text-transform: uppercase" maxlength="10">
+                <mat-icon matSuffix>badge</mat-icon>
+                <mat-hint>Required to decrypt your CDSL CAS Statement</mat-hint>
+                <mat-error *ngIf="profileForm.get('panNumber')?.hasError('pattern')">
+                  Please enter a valid 10-character PAN (e.g. ABCDE1234F)
+                </mat-error>
+              </mat-form-field>
+
               <div class="form-actions">
                 <button mat-raised-button color="primary" type="submit" [disabled]="!profileForm.valid">
                   <mat-icon>save</mat-icon>
@@ -120,13 +131,13 @@ import { User } from '../../models/user.model';
         <!-- Gmail Sync -->
         <mat-card class="profile-card">
           <mat-card-header>
-            <mat-card-title>Gmail Sync</mat-card-title>
+            <mat-card-title>Gmail & CDSL Sync</mat-card-title>
           </mat-card-header>
           <mat-card-content>
-            <p class="sync-description">Automatically sync your investment data from CDSL India emails</p>
+            <p class="sync-description">Hybrid portfolio sync from CDSL Consolidated Account Statement (CAS) PDF and transaction emails</p>
             <div class="sync-info">
               <mat-icon>info</mat-icon>
-              <span>Syncs emails from services@cdslindia.co.in with subject "Transactions In Your Demat Account"</span>
+              <span>Scans "CDSL Consolidated Account Statement (CAS)" with PAN password, extracts full portfolio (stocks, mutual funds, ETFs), and syncs subsequent Demat transactions.</span>
             </div>
             <div class="form-actions">
               <button mat-raised-button color="primary" (click)="onSyncGmail()" [disabled]="isSyncing">
@@ -135,9 +146,14 @@ import { User } from '../../models/user.model';
                 {{ isSyncing ? 'Syncing...' : 'Sync Now' }}
               </button>
             </div>
+            <div *ngIf="casEffectiveDate" class="effective-date-info">
+              <mat-icon>event_available</mat-icon>
+              <span>CAS Effective Date: {{ casEffectiveDate | date:'MMM d, y' }}</span>
+            </div>
             <div *ngIf="lastRefresh" class="last-refresh-info">
               <mat-icon>schedule</mat-icon>
               <span>Last Refresh: {{ lastRefresh | date:'h:mm:ss a, MMM d, y' }}</span>
+              <span *ngIf="syncMode" class="sync-mode-tag">{{ syncMode }}</span>
             </div>
           </mat-card-content>
         </mat-card>
@@ -280,11 +296,28 @@ import { User } from '../../models/user.model';
       }
     }
 
-    .last-refresh-info {
+    .effective-date-info {
       display: flex;
       align-items: center;
       gap: 8px;
       margin-top: 1rem;
+      font-size: 0.875rem;
+      color: #2e7d32;
+      font-weight: 500;
+
+      mat-icon {
+        font-size: 18px;
+        width: 18px;
+        height: 18px;
+        color: #2e7d32;
+      }
+    }
+
+    .last-refresh-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 0.5rem;
       font-size: 0.875rem;
       color: #555;
       font-weight: 500;
@@ -295,6 +328,17 @@ import { User } from '../../models/user.model';
         height: 18px;
         color: #666;
       }
+    }
+
+    .sync-mode-tag {
+      margin-left: 8px;
+      padding: 2px 8px;
+      background: #e0e7ff;
+      color: #3730a3;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
     }
 
     // Dark theme
@@ -423,6 +467,8 @@ export class ProfileComponent implements OnInit, OnDestroy {
   currentUser: User | null = null;
   isSyncing = false;
   lastRefresh: Date | null = null;
+  casEffectiveDate: Date | null = null;
+  syncMode: string | null = null;
   private userSubscription?: Subscription;
 
   constructor(
@@ -437,7 +483,8 @@ export class ProfileComponent implements OnInit, OnDestroy {
     this.profileForm = this.fb.group({
       name: ['', [Validators.required]],
       email: ['', [Validators.required, Validators.email]],
-      contact: ['']
+      contact: [''],
+      panNumber: ['', [Validators.pattern(/^[A-Za-z]{5}[0-9]{4}[A-Za-z]{1}$/)]]
     });
 
     this.preferencesForm = this.fb.group({
@@ -454,10 +501,14 @@ export class ProfileComponent implements OnInit, OnDestroy {
         if (user.lastGmailSync && !this.lastRefresh) {
           this.lastRefresh = new Date(user.lastGmailSync);
         }
+        if (user.casEffectiveDate && !this.casEffectiveDate) {
+          this.casEffectiveDate = new Date(user.casEffectiveDate);
+        }
         this.profileForm.patchValue({
           name: user.name,
           email: user.email,
-          contact: user.phoneNumber || user.contact || ''
+          contact: user.phoneNumber || user.contact || '',
+          panNumber: user.panNumber || ''
         });
 
         const notificationsVal = typeof user.preferences?.notifications === 'boolean'
@@ -480,10 +531,17 @@ export class ProfileComponent implements OnInit, OnDestroy {
 
   onUpdateProfile(): void {
     if (this.profileForm.valid) {
-      const { name, contact } = this.profileForm.value;
+      const { name, contact, panNumber } = this.profileForm.value;
 
-      this.authService.updateUserProfile({ name, phoneNumber: contact }).subscribe({
-        next: () => {
+      this.authService.updateUserProfile({
+        name,
+        phoneNumber: contact,
+        panNumber: panNumber ? panNumber.trim().toUpperCase() : undefined
+      }).subscribe({
+        next: (updated) => {
+          if (this.currentUser) {
+            this.currentUser.panNumber = updated?.panNumber || panNumber?.toUpperCase();
+          }
           this.snackBar.open('Profile updated successfully!', 'Close', { duration: 3000 });
           this.cdr.markForCheck();
         },
@@ -521,6 +579,12 @@ export class ProfileComponent implements OnInit, OnDestroy {
   }
 
   onSyncGmail(): void {
+    const currentPAN = this.profileForm.get('panNumber')?.value || this.currentUser?.panNumber;
+    if (!currentPAN || currentPAN.trim() === '') {
+      this.snackBar.open('Please enter and save your PAN Card Number before syncing your CDSL CAS.', 'Close', { duration: 4000 });
+      return;
+    }
+
     this.isSyncing = true;
     this.cdr.detectChanges();
 
@@ -532,16 +596,27 @@ export class ProfileComponent implements OnInit, OnDestroy {
         } else {
           this.lastRefresh = new Date();
         }
+        if (response?.portfolioEffectiveDate) {
+          this.casEffectiveDate = new Date(response.portfolioEffectiveDate);
+        }
+        if (response?.syncMode) {
+          this.syncMode = response.syncMode;
+        }
         if (this.currentUser) {
           this.currentUser.lastGmailSync = this.lastRefresh.toISOString();
+          if (this.casEffectiveDate) {
+            this.currentUser.casEffectiveDate = this.casEffectiveDate.toISOString();
+          }
         }
         this.investmentService.clearCache();
-        this.snackBar.open('You are all caught up!', 'Close', { duration: 3000 });
+        const displayMsg = response?.message || 'Portfolio sync completed successfully!';
+        this.snackBar.open(displayMsg, 'Close', { duration: 4000 });
         this.cdr.detectChanges();
       },
-      error: () => {
+      error: (err) => {
         this.isSyncing = false;
-        this.snackBar.open('Failed to sync Gmail. Please try again.', 'Close', { duration: 5000 });
+        const errMsg = err?.error?.error || err?.message || 'Failed to sync Gmail. Please check your PAN and try again.';
+        this.snackBar.open(errMsg, 'Close', { duration: 5000 });
         this.cdr.detectChanges();
       }
     });

@@ -127,7 +127,7 @@ export class AuthService {
     return this.currentUserSubject.value;
   }
 
-  updateUserProfile(profile: { name?: string; phoneNumber?: string }): Observable<User> {
+  updateUserProfile(profile: { name?: string; phoneNumber?: string; panNumber?: string }): Observable<User> {
     return this.http.put<{ user: User }>(`${this.apiUrl}/users/profile`, profile).pipe(
       map(res => res.user),
       tap(updatedUser => {

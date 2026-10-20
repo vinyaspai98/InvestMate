@@ -1,23 +1,25 @@
 package handlers
 
 import (
-	"bytes"
 	"context"
 	_ "embed"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"net/url"
 	"regexp"
 	"slices"
+	"sort"
 	"strings"
 	"time"
 
 	"investmate-backend/internal/constants"
 	"investmate-backend/internal/models"
+	"investmate-backend/internal/services/caspdf"
+	"investmate-backend/internal/services/gemini"
+	"investmate-backend/internal/services/tradedate"
 
 	"cloud.google.com/go/firestore"
 	"github.com/gin-gonic/gin"
@@ -98,6 +100,28 @@ type yfMeta struct {
 }
 type yfQuote struct {
 	Close []*float64 `json:"close"`
+	Open  []*float64 `json:"open"`
+	High  []*float64 `json:"high"`
+	Low   []*float64 `json:"low"`
+}
+
+// getDayPrice returns the average price for the day ((High+Low)/2) or falls back to Close.
+func (q yfQuote) getDayPrice(index int) float64 {
+	if index < 0 || index >= len(q.Close) || q.Close[index] == nil {
+		return 0
+	}
+	closePrice := *q.Close[index]
+	var highPrice, lowPrice float64
+	if index < len(q.High) && q.High[index] != nil {
+		highPrice = *q.High[index]
+	}
+	if index < len(q.Low) && q.Low[index] != nil {
+		lowPrice = *q.Low[index]
+	}
+	if highPrice > 0 && lowPrice > 0 {
+		return (highPrice + lowPrice) / 2.0
+	}
+	return closePrice
 }
 type yfIndicators struct {
 	Quote []yfQuote `json:"quote"`
@@ -166,10 +190,22 @@ func NewGmailHandler(firestoreClient *firestore.Client, geminiAPIKey, alphaVanta
 }
 
 // ---------------------------------------------------------------------------
-// SyncGmail — main HTTP handler
-// ---------------------------------------------------------------------------
+// SyncGmailResponse represents the structured response of hybrid Gmail sync.
+type SyncGmailResponse struct {
+	Message                string     `json:"message"`
+	SyncMode               string     `json:"syncMode"` // "cas_bootstrap", "incremental", "price_refresh", "full_reconcile"
+	Synced                 int        `json:"synced"`
+	Total                  int        `json:"total,omitempty"`
+	CASProcessed           bool       `json:"casProcessed"`
+	PortfolioEffectiveDate *time.Time `json:"portfolioEffectiveDate,omitempty"`
+	LastGmailSync          time.Time  `json:"lastGmailSync"`
+}
 
-// SyncGmail handles the Gmail sync request.
+// SyncGmail handles the hybrid Gmail sync request:
+// 1. Validates PAN card requirement.
+// 2. If first sync or new CAS mail: bootstraps portfolio from CDSL CAS PDF and reconciles.
+// 3. Incrementally syncs Demat transactions from CAS effective date / last sync.
+// 4. If already synced and no new emails: executes fast price-only refresh directly from database.
 func (h *GmailHandler) SyncGmail(c *gin.Context) {
 	userID := c.GetString("userID")
 	if userID == "" {
@@ -177,7 +213,7 @@ func (h *GmailHandler) SyncGmail(c *gin.Context) {
 		return
 	}
 
-	// Get user profile to retrieve Gmail OAuth token
+	// Get user profile
 	user, err := h.getUserProfile(c.Request.Context(), userID)
 	if err != nil {
 		if strings.Contains(err.Error(), "NotFound") || strings.Contains(err.Error(), "not found") {
@@ -186,6 +222,14 @@ func (h *GmailHandler) SyncGmail(c *gin.Context) {
 		}
 		log.Printf("Failed to get user profile for %s: %v", userID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get user profile"})
+		return
+	}
+
+	// Requirement 1 & 2: PAN card number is required for CAS PDF decryption
+	if strings.TrimSpace(user.PANNumber) == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "PAN card number is required to decrypt your CDSL CAS statement. Please update your PAN in your Profile.",
+		})
 		return
 	}
 
@@ -202,72 +246,727 @@ func (h *GmailHandler) SyncGmail(c *gin.Context) {
 		return
 	}
 
-	// Fetch CDSL emails after last sync
-	emails, err := h.fetchCDSLEmails(gmailService, userID, user.LastGmailSync)
+	ctx := c.Request.Context()
+	isFirstSync := user.LastGmailSync == nil || user.CASEffectiveDate == nil
+
+	if isFirstSync {
+		log.Printf("SyncGmail: First sync for user %s, initiating CAS bootstrap", userID)
+		h.doCASBootstrapSync(c, ctx, gmailService, user, userID)
+		return
+	}
+
+	// Requirement 5: Check if there are new CAS emails since last sync
+	hasNewCAS := h.hasNewCASEmail(gmailService, user.LastGmailSync)
+	if hasNewCAS {
+		log.Printf("SyncGmail: New CAS email detected for user %s. Running full reconciliation.", userID)
+		h.doCASBootstrapSync(c, ctx, gmailService, user, userID)
+		return
+	}
+
+	// Check if there are new Demat transaction emails since last sync
+	hasNewTx := h.hasNewDematTxEmail(gmailService, user.LastGmailSync)
+	if hasNewTx {
+		log.Printf("SyncGmail: New Demat transactions detected for user %s. Running incremental sync.", userID)
+		h.doIncrementalSync(c, ctx, gmailService, user, userID)
+		return
+	}
+
+	// If neither new CAS nor new Demat Tx emails exist: price-only refresh directly from DB
+	log.Printf("SyncGmail: No new CAS or Demat emails for user %s. Running price-only refresh from database.", userID)
+	h.doPriceRefresh(c, ctx, user, userID)
+}
+
+// hasNewCASEmail checks if any CDSL CAS emails arrived after the given timestamp.
+func (h *GmailHandler) hasNewCASEmail(gmailService *gmail.Service, since *time.Time) bool {
+	query := "subject:\"CDSL Consolidated Account Statement\""
+	if since != nil && !since.IsZero() {
+		query = fmt.Sprintf("%s after:%d", query, since.Unix())
+	}
+	resp, err := gmailService.Users.Messages.List("me").Q(query).MaxResults(1).Do()
 	if err != nil {
-		log.Printf("Failed to fetch emails: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch emails"})
+		log.Printf("hasNewCASEmail error: %v", err)
+		return false
+	}
+	return len(resp.Messages) > 0
+}
+
+// hasNewDematTxEmail checks if any Demat transaction emails arrived after the given timestamp.
+func (h *GmailHandler) hasNewDematTxEmail(gmailService *gmail.Service, since *time.Time) bool {
+	query := fmt.Sprintf("subject:\"%s\"", constants.CDSLEmailSubject)
+	if since != nil && !since.IsZero() {
+		query = fmt.Sprintf("%s after:%d", query, since.Unix())
+	}
+	resp, err := gmailService.Users.Messages.List("me").Q(query).MaxResults(1).Do()
+	if err != nil {
+		log.Printf("hasNewDematTxEmail error: %v", err)
+		return false
+	}
+	return len(resp.Messages) > 0
+}
+
+// CASEmailItem represents a fetched CAS email with its decrypted PDF payload and metadata.
+type CASEmailItem struct {
+	MessageID string
+	Subject   string
+	EmailDate time.Time
+	PDFBytes  []byte
+}
+
+// fetchAllCASEmails retrieves ALL CDSL CAS emails with PDF attachments (sorted chronologically from oldest to newest).
+func (h *GmailHandler) fetchAllCASEmails(gmailService *gmail.Service, since *time.Time) ([]CASEmailItem, error) {
+	query := "subject:\"CDSL Consolidated Account Statement\""
+	if since != nil && !since.IsZero() {
+		query = fmt.Sprintf("%s after:%d", query, since.Unix())
+	}
+
+	resp, err := gmailService.Users.Messages.List("me").Q(query).MaxResults(int64(constants.MaxEmailsToFetch)).Do()
+	if err != nil {
+		return nil, fmt.Errorf("failed to query CAS emails: %w", err)
+	}
+	if len(resp.Messages) == 0 {
+		return nil, fmt.Errorf("no CDSL Consolidated Account Statement emails found")
+	}
+
+	var casItems []CASEmailItem
+	for _, msgMeta := range resp.Messages {
+		fullMsg, err := gmailService.Users.Messages.Get("me", msgMeta.Id).Format("full").Do()
+		if err != nil {
+			continue
+		}
+		pdfBytes, err := h.extractPDFAttachment(gmailService, fullMsg)
+		if err != nil || len(pdfBytes) == 0 {
+			continue
+		}
+
+		emailDate := time.Unix(fullMsg.InternalDate/1000, 0)
+		subject := ""
+		if fullMsg.Payload != nil {
+			for _, hdr := range fullMsg.Payload.Headers {
+				if strings.EqualFold(hdr.Name, "Subject") {
+					subject = hdr.Value
+				}
+				if strings.EqualFold(hdr.Name, "Date") && emailDate.IsZero() {
+					if parsed, err := time.Parse(time.RFC1123Z, hdr.Value); err == nil {
+						emailDate = parsed
+					} else if parsed, err := time.Parse(time.RFC1123, hdr.Value); err == nil {
+						emailDate = parsed
+					}
+				}
+			}
+		}
+
+		casItems = append(casItems, CASEmailItem{
+			MessageID: fullMsg.Id,
+			Subject:   subject,
+			EmailDate: emailDate,
+			PDFBytes:  pdfBytes,
+		})
+	}
+
+	if len(casItems) == 0 {
+		return nil, fmt.Errorf("no CAS emails with a PDF attachment could be found")
+	}
+
+	// Sort chronologically: OLDEST first -> NEWEST last
+	// Earlier months establish real trades with their exact dates;
+	// the latest statement gives the most recent portfolio balances.
+	sort.Slice(casItems, func(i, j int) bool {
+		return casItems[i].EmailDate.Before(casItems[j].EmailDate)
+	})
+
+	return casItems, nil
+}
+
+// extractPDFAttachment searches recursively for a PDF attachment inside a Gmail message.
+func (h *GmailHandler) extractPDFAttachment(gmailService *gmail.Service, msg *gmail.Message) ([]byte, error) {
+	var searchPart func(part *gmail.MessagePart) ([]byte, error)
+	searchPart = func(part *gmail.MessagePart) ([]byte, error) {
+		if part == nil {
+			return nil, nil
+		}
+		isPDF := strings.EqualFold(part.MimeType, "application/pdf") ||
+			strings.HasSuffix(strings.ToLower(part.Filename), ".pdf")
+
+		if isPDF && part.Body != nil {
+			if part.Body.AttachmentId != "" {
+				att, err := gmailService.Users.Messages.Attachments.Get("me", msg.Id, part.Body.AttachmentId).Do()
+				if err != nil {
+					return nil, fmt.Errorf("failed to download attachment %s: %w", part.Body.AttachmentId, err)
+				}
+				data, err := base64.URLEncoding.DecodeString(att.Data)
+				if err != nil {
+					if data2, err2 := base64.RawURLEncoding.DecodeString(att.Data); err2 == nil {
+						return data2, nil
+					}
+					return base64.StdEncoding.DecodeString(att.Data)
+				}
+				return data, nil
+			} else if part.Body.Data != "" {
+				data, err := base64.URLEncoding.DecodeString(part.Body.Data)
+				if err != nil {
+					return base64.RawURLEncoding.DecodeString(part.Body.Data)
+				}
+				return data, nil
+			}
+		}
+
+		for _, subPart := range part.Parts {
+			if data, err := searchPart(subPart); err == nil && len(data) > 0 {
+				return data, nil
+			}
+		}
+		return nil, nil
+	}
+
+	if msg.Payload != nil {
+		data, err := searchPart(msg.Payload)
+		if err != nil {
+			return nil, err
+		}
+		if len(data) > 0 {
+			return data, nil
+		}
+	}
+
+	return nil, fmt.Errorf("no PDF attachment found in email %s", msg.Id)
+}
+
+// doCASBootstrapSync processes ALL CDSL CAS statements chronologically from oldest to newest:
+// 1. Extracts monthly trades (Section 2) with exact execution dates from each monthly statement.
+// 2. Reconciles current holdings (Section 1) from the latest statement without creating dummy transactions on statement date.
+// 3. Incrementally syncs subsequent Demat transaction emails up to the present date.
+func (h *GmailHandler) doCASBootstrapSync(c *gin.Context, ctx context.Context, gmailService *gmail.Service, user *models.User, userID string) {
+	casItems, err := h.fetchAllCASEmails(gmailService, nil)
+	if err != nil {
+		log.Printf("doCASBootstrapSync: No CAS email found (%v). Falling back to Demat transaction emails.", err)
+		h.doIncrementalSync(c, ctx, gmailService, user, userID)
 		return
 	}
 
-	if len(emails) == 0 {
-		now := time.Now()
-		_, err = h.firestoreClient.Collection("users").Doc(userID).Update(c.Request.Context(), []firestore.Update{
-			{Path: "lastGmailSync", Value: now},
-			{Path: "updatedAt", Value: now},
-		})
+	log.Printf("doCASBootstrapSync: Found %d CDSL CAS statement emails. Processing chronologically...", len(casItems))
+
+	totalTradesExtracted := 0
+	totalHoldingsExtracted := 0
+	var latestStatementDate time.Time
+	var latestHoldings []caspdf.CASHolding
+
+	// Track seen transactions across monthly statements to prevent duplicate insertions
+	seenTransactions := make(map[string]bool)
+
+	// Step A: Iterate through all CAS statements from OLDEST to NEWEST
+	for idx, item := range casItems {
+		log.Printf("Processing CAS statement [%d/%d] from %s (Subject: %q)", idx+1, len(casItems), item.EmailDate.Format("2006-01-02"), item.Subject)
+
+		casResult, err := caspdf.ExtractFromPDF(ctx, item.PDFBytes, user.PANNumber, h.geminiAPIKey)
 		if err != nil {
-			log.Printf("Failed to update last sync timestamp: %v", err)
+			log.Printf("Failed to decrypt/extract CAS PDF from email %s: %v. Continuing with remaining...", item.MessageID, err)
+			continue
 		}
 
-		c.JSON(http.StatusOK, gin.H{
-			"message":       "No new emails found",
-			"synced":        0,
-			"lastGmailSync": now,
-		})
-		return
+		stmtDate, err := caspdf.ParseStatementDate(casResult.StatementDate)
+		if err != nil {
+			stmtDate = item.EmailDate
+		}
+
+		if stmtDate.After(latestStatementDate) || latestStatementDate.IsZero() {
+			latestStatementDate = stmtDate
+			latestHoldings = casResult.Holdings
+		}
+
+		// Save the trades from Section 2 for this month with their exact execution dates
+		if len(casResult.Transactions) > 0 {
+			savedTrades, err := h.saveCASTransactions(ctx, userID, casResult.Transactions, seenTransactions)
+			if err != nil {
+				log.Printf("Warning: error saving some CAS transactions: %v", err)
+			}
+			totalTradesExtracted += savedTrades
+			log.Printf("CAS [%d/%d]: saved %d trading transactions with exact execution dates", idx+1, len(casItems), savedTrades)
+		}
 	}
 
-	// Parse emails and extract investment data
-	syncedCount := 0
-	for _, email := range emails {
-		investments, transactions, err := h.parseEmailContent(c.Request.Context(), email)
-		if err != nil {
-			log.Printf("Failed to parse email %s: %v", email.Id, err)
-			continue
-		}
-
-		if len(investments) == 0 {
-			log.Printf("No investments extracted from email %s", email.Id)
-			continue
-		}
-
-		// Save investment data to Firestore
-		err = h.saveInvestmentData(c.Request.Context(), userID, investments, transactions)
-		if err != nil {
-			log.Printf("Failed to save investment data: %v", err)
-			continue
-		}
-
-		syncedCount++
+	if latestStatementDate.IsZero() {
+		latestStatementDate = time.Now().AddDate(0, -1, 0)
 	}
 
-	// Update last sync timestamp
+	// Step B: Reconcile current holdings from the latest CAS statement (Section 1)
+	savedHoldings, err := h.reconcileCASHoldings(ctx, userID, latestHoldings, latestStatementDate, seenTransactions)
+	if err != nil {
+		log.Printf("Failed to reconcile CAS holdings: %v", err)
+	}
+	totalHoldingsExtracted = savedHoldings
+
 	now := time.Now()
-	_, err = h.firestoreClient.Collection("users").Doc(userID).Update(c.Request.Context(), []firestore.Update{
+	_, err = h.firestoreClient.Collection("users").Doc(userID).Update(ctx, []firestore.Update{
+		{Path: "lastCASProcessed", Value: now},
+		{Path: "casEffectiveDate", Value: latestStatementDate},
 		{Path: "lastGmailSync", Value: now},
 		{Path: "updatedAt", Value: now},
 	})
 	if err != nil {
-		log.Printf("Failed to update last sync timestamp: %v", err)
+		log.Printf("doCASBootstrapSync: Failed to update user CAS metadata: %v", err)
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"message":       "Gmail sync completed successfully",
-		"synced":        syncedCount,
-		"total":         len(emails),
-		"lastGmailSync": now,
+	// Step C: Incrementally scan Demat transaction emails strictly starting from latestStatementDate to current date
+	incEmails, err := h.fetchCDSLEmails(gmailService, userID, &latestStatementDate)
+	syncedTxCount := 0
+	if err == nil && len(incEmails) > 0 {
+		log.Printf("doCASBootstrapSync: Processing %d incremental Demat emails after latest CAS date %v", len(incEmails), latestStatementDate)
+		for _, email := range incEmails {
+			investments, transactions, err := h.parseEmailContent(ctx, email)
+			if err != nil || len(investments) == 0 {
+				continue
+			}
+			if err := h.saveInvestmentData(ctx, userID, investments, transactions); err == nil {
+				syncedTxCount++
+			}
+		}
+	}
+
+	mode := "cas_bootstrap"
+	if user.LastGmailSync != nil {
+		mode = "full_reconcile"
+	}
+
+	totalSynced := totalTradesExtracted + totalHoldingsExtracted + syncedTxCount
+	c.JSON(http.StatusOK, SyncGmailResponse{
+		Message: fmt.Sprintf("Processed %d CDSL CAS statements: extracted %d monthly trades with exact execution dates, reconciled %d portfolio holdings, and synced %d subsequent Demat transactions",
+			len(casItems), totalTradesExtracted, totalHoldingsExtracted, syncedTxCount),
+		SyncMode:               mode,
+		Synced:                 totalSynced,
+		CASProcessed:           true,
+		PortfolioEffectiveDate: &latestStatementDate,
+		LastGmailSync:          now,
 	})
+}
+
+// doIncrementalSync processes only new Demat transaction emails since last sync.
+func (h *GmailHandler) doIncrementalSync(c *gin.Context, ctx context.Context, gmailService *gmail.Service, user *models.User, userID string) {
+	syncAfter := user.LastGmailSync
+	if user.CASEffectiveDate != nil && (syncAfter == nil || user.CASEffectiveDate.After(*syncAfter)) {
+		syncAfter = user.CASEffectiveDate
+	}
+
+	emails, err := h.fetchCDSLEmails(gmailService, userID, syncAfter)
+	if err != nil {
+		log.Printf("doIncrementalSync: Failed to fetch emails: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to fetch emails"})
+		return
+	}
+
+	now := time.Now()
+	syncedCount := 0
+	for _, email := range emails {
+		investments, transactions, err := h.parseEmailContent(ctx, email)
+		if err != nil || len(investments) == 0 {
+			continue
+		}
+		if err := h.saveInvestmentData(ctx, userID, investments, transactions); err == nil {
+			syncedCount++
+		}
+	}
+
+	_, _ = h.firestoreClient.Collection("users").Doc(userID).Update(ctx, []firestore.Update{
+		{Path: "lastGmailSync", Value: now},
+		{Path: "updatedAt", Value: now},
+	})
+
+	c.JSON(http.StatusOK, SyncGmailResponse{
+		Message:       fmt.Sprintf("Incremental sync completed. Processed %d new Demat transactions.", syncedCount),
+		SyncMode:      "incremental",
+		Synced:        syncedCount,
+		Total:         len(emails),
+		LastGmailSync: now,
+	})
+}
+
+// doPriceRefresh updates investment values and profit/loss directly from database and live prices.
+func (h *GmailHandler) doPriceRefresh(c *gin.Context, ctx context.Context, user *models.User, userID string) {
+	iter := h.firestoreClient.Collection("users").Doc(userID).Collection("investments").Where("isActive", "==", true).Documents(ctx)
+	todayStr := time.Now().Format("2006-01-02")
+	batch := h.firestoreClient.Batch()
+	updatedCount := 0
+
+	for {
+		doc, err := iter.Next()
+		if err != nil {
+			break
+		}
+		var inv models.Investment
+		if err := doc.DataTo(&inv); err != nil {
+			continue
+		}
+
+		var currentPrice float64
+		if inv.Category == models.CategoryStocks {
+			ticker := inv.InvestmentData.Ticker
+			if ticker == "" {
+				ticker = inv.Name
+			}
+			currentPrice = h.fetchStockPrice(ctx, ticker, todayStr)
+			if currentPrice > 0 {
+				inv.InvestmentData.CurrentPrice = currentPrice
+				inv.CurrentValue = inv.InvestmentData.Quantity * currentPrice
+				inv.UpdatedAt = time.Now()
+				batch.Set(doc.Ref, inv)
+				updatedCount++
+			}
+		} else if inv.Category == models.CategoryMutualFunds {
+			ticker := inv.InvestmentData.Ticker
+			currentPrice = h.fetchMutualFundNAV(ctx, inv.Name, ticker, todayStr)
+			if currentPrice == 0 && ticker != "" {
+				currentPrice = h.fetchStockPrice(ctx, ticker, todayStr)
+			}
+			if currentPrice > 0 {
+				inv.InvestmentData.CurrentPrice = currentPrice
+				inv.CurrentValue = inv.InvestmentData.Units * currentPrice
+				inv.UpdatedAt = time.Now()
+				batch.Set(doc.Ref, inv)
+				updatedCount++
+			}
+		}
+	}
+
+	if updatedCount > 0 {
+		if _, err := batch.Commit(ctx); err != nil {
+			log.Printf("doPriceRefresh: Batch commit failed: %v", err)
+		}
+	}
+
+	now := time.Now()
+	_, _ = h.firestoreClient.Collection("users").Doc(userID).Update(ctx, []firestore.Update{
+		{Path: "lastGmailSync", Value: now},
+		{Path: "updatedAt", Value: now},
+	})
+
+	c.JSON(http.StatusOK, SyncGmailResponse{
+		Message:       fmt.Sprintf("Portfolio refreshed directly from market data (%d holdings updated).", updatedCount),
+		SyncMode:      "price_refresh",
+		Synced:        updatedCount,
+		LastGmailSync: now,
+	})
+}
+
+// saveCASTransactions saves trades executed in that month (Section 2) with their EXACT execution dates.
+func (h *GmailHandler) saveCASTransactions(ctx context.Context, userID string,
+	trades []caspdf.CASTransaction, seenTx map[string]bool) (int, error) {
+
+	batch := h.firestoreClient.Batch()
+	savedCount := 0
+
+	for _, trade := range trades {
+		if trade.Quantity <= 0 {
+			continue
+		}
+
+		isMF := strings.EqualFold(trade.Category, "mutualFunds") ||
+			strings.HasPrefix(strings.ToUpper(trade.ISIN), "INF") ||
+			strings.Contains(strings.ToUpper(trade.Name), "ETF")
+
+		category := models.CategoryStocks
+		if isMF {
+			category = models.CategoryMutualFunds
+		}
+
+		name := cleanInvestmentName(trade.Name, isMF)
+		if name == "" {
+			name = trade.Name
+		}
+
+		txType := models.TransactionTypeBuy
+		if strings.EqualFold(trade.Type, "sell") {
+			txType = models.TransactionTypeSell
+		}
+
+		// Exact trade execution date from Section 2
+		tradeDate := mustParseDate(trade.TransactionDate)
+		if tradeDate.IsZero() {
+			log.Printf("Warning: skipping CAS trade %q with missing/invalid date %q", name, trade.TransactionDate)
+			continue
+		}
+
+		effectiveTradeDate := tradedate.ResolveTradeDate(tradeDate)
+		tradeDateStr := effectiveTradeDate.Format("2006-01-02")
+
+		var invTicker string
+		var tradePrice float64
+
+		if isMF {
+			if trade.Ticker != "" && !strings.HasPrefix(strings.ToUpper(trade.Ticker), "INF") {
+				invTicker = trade.Ticker
+			} else {
+				invTicker = generateMFTicker(name)
+			}
+			if trade.Price > 0 {
+				tradePrice = trade.Price
+			} else {
+				tradePrice = h.fetchMutualFundNAV(ctx, name, trade.ISIN, tradeDateStr)
+				if tradePrice == 0 && invTicker != "" {
+					tradePrice = h.fetchStockPrice(ctx, invTicker, tradeDateStr)
+				}
+			}
+		} else {
+			stockTicker := trade.Ticker
+			if stockTicker == "" {
+				stockTicker = trade.ISIN
+			}
+			invTicker = stockTicker
+			if trade.Price > 0 {
+				tradePrice = trade.Price
+			} else {
+				tradePrice = h.fetchStockPrice(ctx, stockTicker, tradeDateStr)
+			}
+		}
+
+		tradeAmount := trade.Quantity * tradePrice
+
+		// Deduplicate transaction to avoid inserting the same trade twice across monthly statements
+		dedupKey := fmt.Sprintf("%s_%s_%s_%.4f_%s", category, invTicker, tradeDateStr, trade.Quantity, txType)
+		if seenTx[dedupKey] {
+			continue
+		}
+		seenTx[dedupKey] = true
+
+		// Find or create investment doc to obtain relatedID
+		var q firestore.Query
+		if invTicker != "" {
+			q = h.firestoreClient.Collection("users").Doc(userID).Collection("investments").
+				Where("category", "==", category).
+				Where("investmentData.ticker", "==", invTicker).
+				Limit(1)
+		} else {
+			q = h.firestoreClient.Collection("users").Doc(userID).Collection("investments").
+				Where("category", "==", category).
+				Where("name", "==", name).
+				Limit(1)
+		}
+
+		relatedID := ""
+		docs, err := q.Documents(ctx).GetAll()
+		if err == nil && len(docs) > 0 {
+			relatedID = docs[0].Ref.ID
+		} else {
+			newRef := h.firestoreClient.Collection("users").Doc(userID).Collection("investments").NewDoc()
+			var invData models.InvestmentData
+			if isMF {
+				invData = models.InvestmentData{FundName: name, Ticker: invTicker, Units: trade.Quantity, CurrentPrice: tradePrice}
+			} else {
+				invData = models.InvestmentData{Ticker: invTicker, Quantity: trade.Quantity, CurrentPrice: tradePrice}
+			}
+			newInv := models.Investment{
+				Category:       category,
+				Name:           name,
+				InvestedAmount: tradeAmount,
+				CurrentValue:   tradeAmount,
+				CreatedAt:      effectiveTradeDate,
+				UpdatedAt:      time.Now(),
+				IsActive:       true,
+				InvestmentData: invData,
+			}
+			batch.Set(newRef, newInv)
+			relatedID = newRef.ID
+		}
+
+		desc := trade.Description
+		if desc == "" {
+			desc = fmt.Sprintf("%s (%s) %s trade from CDSL CAS", name, invTicker, strings.ToUpper(trade.Type))
+		}
+
+		txRef := h.firestoreClient.Collection("users").Doc(userID).Collection("transactions").NewDoc()
+		tx := models.Transaction{
+			RelatedID:   relatedID,
+			Category:    category,
+			Type:        txType,
+			Quantity:    trade.Quantity,
+			Price:       tradePrice,
+			Amount:      tradeAmount,
+			Date:        effectiveTradeDate,
+			Description: desc,
+			CreatedAt:   time.Now(),
+		}
+		batch.Set(txRef, tx)
+		savedCount++
+	}
+
+	if savedCount > 0 {
+		_, err := batch.Commit(ctx)
+		return savedCount, err
+	}
+	return 0, nil
+}
+
+// reconcileCASHoldings reconciles current holdings (Section 1) from the latest CAS statement.
+// Crucially, it does NOT create fake transactions with statement dates for assets that already have trade history.
+func (h *GmailHandler) reconcileCASHoldings(ctx context.Context, userID string,
+	holdings []caspdf.CASHolding, statementDate time.Time, seenTx map[string]bool) (int, error) {
+
+	if len(holdings) == 0 {
+		return 0, nil
+	}
+
+	batch := h.firestoreClient.Batch()
+	todayStr := time.Now().Format("2006-01-02")
+	stmtDateStr := statementDate.Format("2006-01-02")
+	reconciledCount := 0
+
+	for _, holding := range holdings {
+		isMF := strings.EqualFold(holding.Category, "mutualFunds") ||
+			strings.HasPrefix(strings.ToUpper(holding.ISIN), "INF") ||
+			strings.Contains(strings.ToUpper(holding.Name), "ETF")
+
+		category := models.CategoryStocks
+		if isMF {
+			category = models.CategoryMutualFunds
+		}
+
+		name := cleanInvestmentName(holding.Name, isMF)
+		if name == "" {
+			name = holding.Name
+		}
+
+		var invTicker string
+		var txPrice float64
+		var currentPrice float64
+
+		if isMF {
+			if holding.Ticker != "" && !strings.HasPrefix(strings.ToUpper(holding.Ticker), "INF") {
+				invTicker = holding.Ticker
+			} else {
+				invTicker = generateMFTicker(name)
+			}
+			if holding.Price > 0 {
+				txPrice = holding.Price
+			} else {
+				txPrice = h.fetchMutualFundNAV(ctx, name, holding.ISIN, stmtDateStr)
+				if txPrice == 0 && invTicker != "" {
+					txPrice = h.fetchStockPrice(ctx, invTicker, stmtDateStr)
+				}
+			}
+			currentPrice = h.fetchMutualFundNAV(ctx, name, holding.ISIN, todayStr)
+			if currentPrice == 0 && invTicker != "" {
+				currentPrice = h.fetchStockPrice(ctx, invTicker, todayStr)
+			}
+			if currentPrice == 0 {
+				currentPrice = txPrice
+			}
+			if txPrice == 0 {
+				txPrice = currentPrice
+			}
+		} else {
+			stockTicker := holding.Ticker
+			if stockTicker == "" {
+				stockTicker = holding.ISIN
+			}
+			invTicker = stockTicker
+			if holding.Price > 0 {
+				txPrice = holding.Price
+			} else {
+				txPrice = h.fetchStockPrice(ctx, stockTicker, stmtDateStr)
+			}
+			currentPrice = h.fetchStockPrice(ctx, stockTicker, todayStr)
+			if currentPrice == 0 {
+				currentPrice = txPrice
+			}
+			if txPrice == 0 {
+				txPrice = currentPrice
+			}
+		}
+
+		investedAmount := holding.InvestedAmount
+		if investedAmount <= 0 {
+			investedAmount = holding.Quantity * txPrice
+		}
+		currentVal := holding.Quantity * currentPrice
+
+		var invData models.InvestmentData
+		if isMF {
+			invData = models.InvestmentData{
+				FundName:     name,
+				Units:        holding.Quantity,
+				Ticker:       invTicker,
+				NAV:          txPrice,
+				CurrentPrice: currentPrice,
+			}
+		} else {
+			invData = models.InvestmentData{
+				Ticker:       invTicker,
+				Quantity:     holding.Quantity,
+				AveragePrice: txPrice,
+				CurrentPrice: currentPrice,
+			}
+		}
+
+		var query firestore.Query
+		if invTicker != "" {
+			query = h.firestoreClient.Collection("users").Doc(userID).Collection("investments").
+				Where("category", "==", category).
+				Where("investmentData.ticker", "==", invTicker).
+				Limit(1)
+		} else {
+			query = h.firestoreClient.Collection("users").Doc(userID).Collection("investments").
+				Where("category", "==", category).
+				Where("name", "==", name).
+				Limit(1)
+		}
+
+		docs, err := query.Documents(ctx).GetAll()
+		var targetRef *firestore.DocumentRef
+		isNew := true
+
+		if err == nil && len(docs) > 0 {
+			targetRef = docs[0].Ref
+			isNew = false
+			var existing models.Investment
+			_ = docs[0].DataTo(&existing)
+			existing.InvestmentData = invData
+			existing.InvestedAmount = investedAmount
+			existing.CurrentValue = currentVal
+			existing.UpdatedAt = time.Now()
+			batch.Set(targetRef, existing)
+		} else {
+			targetRef = h.firestoreClient.Collection("users").Doc(userID).Collection("investments").NewDoc()
+			newInv := models.Investment{
+				Category:       category,
+				Name:           name,
+				InvestedAmount: investedAmount,
+				CurrentValue:   currentVal,
+				CreatedAt:      statementDate,
+				UpdatedAt:      time.Now(),
+				IsActive:       true,
+				InvestmentData: invData,
+			}
+			batch.Set(targetRef, newInv)
+		}
+		reconciledCount++
+
+		// Only if this investment has NO recorded transactions from Section 2 or Demat emails:
+		// Create an initial opening balance transaction so the holding has cost basis.
+		// If it already has transactions, DO NOT CREATE A DUMMY TRANSACTION with statement date!
+		if isNew {
+			txDocs, _ := h.firestoreClient.Collection("users").Doc(userID).Collection("transactions").
+				Where("relatedId", "==", targetRef.ID).Limit(1).Documents(ctx).GetAll()
+			if len(txDocs) == 0 {
+				txRef := h.firestoreClient.Collection("users").Doc(userID).Collection("transactions").NewDoc()
+				openingTx := models.Transaction{
+					RelatedID:   targetRef.ID,
+					Category:    category,
+					Type:        models.TransactionTypeBuy,
+					Quantity:    holding.Quantity,
+					Price:       txPrice,
+					Amount:      investedAmount,
+					Date:        tradedate.ResolveTradeDate(statementDate),
+					Description: fmt.Sprintf("%s (%s) Initial Holding Balance as of %s", name, invTicker, statementDate.Format("02 Jan 2006")),
+					CreatedAt:   time.Now(),
+				}
+				batch.Set(txRef, openingTx)
+			}
+		}
+	}
+
+	if reconciledCount > 0 {
+		_, err := batch.Commit(ctx)
+		return reconciledCount, err
+	}
+	return 0, nil
 }
 
 // ---------------------------------------------------------------------------
@@ -462,30 +1161,10 @@ func (h *GmailHandler) callGeminiForTransactions(ctx context.Context, emailText 
 		h.geminiAPIKey,
 	)
 
-	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(bodyBytes))
+	respBytes, err := gemini.PostWithRetry(ctx, endpoint, bodyBytes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to build Gemini HTTP request: %v", err)
-	}
-	httpReq.Header.Set("Content-Type", "application/json")
-
-	resp, err := http.DefaultClient.Do(httpReq)
-	if err != nil {
-		log.Printf("callGeminiForTransactions: Gemini HTTP call failed: %v", err)
-		return nil, fmt.Errorf("Gemini HTTP call failed: %v", err)
-	}
-	defer resp.Body.Close()
-
-	respBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		log.Printf("callGeminiForTransactions: failed to read Gemini response body: %v", err)
-		return nil, fmt.Errorf("failed to read Gemini response body: %v", err)
-	}
-
-	log.Printf("callGeminiForTransactions: received response status=%d body_size=%d", resp.StatusCode, len(respBytes))
-
-	if resp.StatusCode != http.StatusOK {
-		log.Printf("callGeminiForTransactions: Gemini API returned error response: %s", string(respBytes))
-		return nil, fmt.Errorf("Gemini API returned status %d: %s", resp.StatusCode, string(respBytes))
+		log.Printf("callGeminiForTransactions: Gemini call failed after retries: %v", err)
+		return nil, fmt.Errorf("Gemini call failed: %w", err)
 	}
 
 	var gemResp geminiResponse
@@ -550,6 +1229,8 @@ func (h *GmailHandler) parseEmailContent(ctx context.Context, email *gmail.Messa
 
 		isMF := strings.HasPrefix(strings.ToUpper(at.ISIN), "INF") ||
 			strings.HasPrefix(strings.ToUpper(at.Ticker), "INF") ||
+			strings.Contains(strings.ToUpper(at.Name), "ETF") ||
+			strings.Contains(strings.ToUpper(at.Ticker), "ETF") ||
 			strings.EqualFold(at.Category, "mutualFunds")
 
 		// Clean name
@@ -558,13 +1239,17 @@ func (h *GmailHandler) parseEmailContent(ctx context.Context, email *gmail.Messa
 			name = at.Name
 		}
 
-		// Parse transaction date
-		txDate := emailDate
+		// Parse transaction notification date
+		notificationDate := emailDate
 		if at.TransactionDate != "" {
 			if parsed, err := time.Parse("2006-01-02", at.TransactionDate); err == nil {
-				txDate = parsed
+				notificationDate = parsed
 			}
 		}
+
+		// Requirement 6: Check for previous working day considering weekends & trade holidays
+		effectiveTradeDate := tradedate.ResolveTradeDate(notificationDate)
+		txDateStr := effectiveTradeDate.Format("2006-01-02")
 
 		// Determine category and transaction type
 		category := models.CategoryStocks
@@ -577,7 +1262,6 @@ func (h *GmailHandler) parseEmailContent(ctx context.Context, email *gmail.Messa
 			txType = models.TransactionTypeSell
 		}
 
-		txDateStr := txDate.Format("2006-01-02")
 		todayStr := time.Now().Format("2006-01-02")
 		var txPrice float64
 		var currentPrice float64
@@ -672,7 +1356,7 @@ func (h *GmailHandler) parseEmailContent(ctx context.Context, email *gmail.Messa
 			Quantity:    at.Quantity,
 			Price:       txPrice,
 			Amount:      investedAmountOnTxDate,
-			Date:        txDate,
+			Date:        effectiveTradeDate,
 			Description: fmt.Sprintf("%s (%s) %s transaction from CDSL", name, invTicker, strings.ToUpper(at.Type)),
 			CreatedAt:   time.Now(),
 		}
@@ -788,12 +1472,12 @@ func (h *GmailHandler) fetchStockPriceYahoo(ctx context.Context, symbol, date st
 		tDate := time.Unix(ts, 0)
 		tDateStr := tDate.Format("2006-01-02")
 		if tDateStr == targetDateOnly {
-			return *closes[i]
+			return res.Indicators.Quote[0].getDayPrice(i)
 		}
 		diff := int(target.Sub(tDate).Hours() / 24)
 		if diff >= 0 && diff < bestDiff {
 			bestDiff = diff
-			bestPrice = *closes[i]
+			bestPrice = res.Indicators.Quote[0].getDayPrice(i)
 		}
 	}
 
